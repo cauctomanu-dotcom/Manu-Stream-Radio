@@ -1,4 +1,4 @@
-(() => {
+(async () => {
   const cfg = window.MSR_PUBLIC_CONFIG || {};
   const $ = id => document.getElementById(id);
   const stationName = cfg.stationName || 'Manu Stream Radio';
@@ -11,13 +11,22 @@
   const box = $('mainPlayer');
   const badge = $('sourceBadge');
   const sub = $('nowSub');
+  const liveBadge = $('liveBadge');
+  const nowTitle = $('nowTitle');
+
+  const setLive = (live, text) => {
+    liveBadge.classList.toggle('live', !!live);
+    liveBadge.classList.toggle('offline', !live);
+    liveBadge.innerHTML = `<span></span> ${live ? 'EN DIRECT' : 'HORS ANTENNE'}`;
+    if (text) sub.textContent = text;
+  };
 
   const setIframe = (src, label, allow) => {
     const iframe = document.createElement('iframe');
     iframe.allow = allow;
     iframe.allowFullscreen = true;
     iframe.src = src;
-    box.classList.remove('empty', 'audio-mode');
+    box.classList.remove('empty', 'audio-mode', 'realtime-mode');
     box.replaceChildren(iframe);
     badge.textContent = label;
     sub.textContent = 'Direct intégré — aucune plateforme à choisir.';
@@ -32,14 +41,159 @@
     audio.preload = 'none';
     audio.src = src;
     wrap.appendChild(audio);
-    box.classList.remove('empty');
+    box.classList.remove('empty', 'realtime-mode');
     box.classList.add('audio-mode');
     box.replaceChildren(wrap);
     badge.textContent = 'FLUX RADIO DIRECT';
     sub.textContent = 'Flux radio direct intégré.';
   };
 
-  if (cfg.audioStreamUrl) {
+  const setupRealtimeBridge = async () => {
+    box.classList.remove('empty', 'audio-mode');
+    box.classList.add('realtime-mode');
+    box.innerHTML = `
+      <div class="realtime-stage">
+        <div class="radio-disc"><span>MSR</span></div>
+        <div class="audio-copy">
+          <p class="eyebrow">MASTER STUDIO · TEST REALTIME</p>
+          <h3>${stationName}</h3>
+          <p id="radioSignalText">Connexion au studio…</p>
+          <button id="listenLiveBtn" class="listen-button" type="button">▶ ÉCOUTER LE DIRECT</button>
+          <small id="radioLatencyText">Le son démarre après un clic, puis suit le MASTER automatiquement.</small>
+        </div>
+      </div>`;
+    badge.textContent = 'WEB RADIO · TEST';
+
+    const signalText = $('radioSignalText');
+    const latencyText = $('radioLatencyText');
+    const listenBtn = $('listenLiveBtn');
+    let armed = false;
+    let audioCtx = null;
+    let nextPlayAt = 0;
+    let lastHeartbeat = 0;
+    let currentMime = 'audio/webm;codecs=opus';
+    let fallbackPlaying = false;
+    const fallbackQueue = [];
+
+    const extractBinary = msg => {
+      const p = msg?.payload ?? msg;
+      if (p instanceof ArrayBuffer) return p;
+      if (ArrayBuffer.isView(p)) return p.buffer.slice(p.byteOffset, p.byteOffset + p.byteLength);
+      if (p?.data instanceof ArrayBuffer) return p.data;
+      if (ArrayBuffer.isView(p?.data)) return p.data.buffer.slice(p.data.byteOffset, p.data.byteOffset + p.data.byteLength);
+      return null;
+    };
+
+    const playFallback = () => {
+      if (!armed || fallbackPlaying || !fallbackQueue.length) return;
+      fallbackPlaying = true;
+      const buf = fallbackQueue.shift();
+      const url = URL.createObjectURL(new Blob([buf], { type: currentMime }));
+      const audio = new Audio(url);
+      audio.onended = audio.onerror = () => {
+        URL.revokeObjectURL(url);
+        fallbackPlaying = false;
+        playFallback();
+      };
+      audio.play().catch(() => {
+        URL.revokeObjectURL(url);
+        fallbackPlaying = false;
+      });
+    };
+
+    const playSegment = async buf => {
+      if (!armed) {
+        signalText.textContent = 'Signal reçu — clique sur ÉCOUTER LE DIRECT.';
+        return;
+      }
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === 'suspended') await audioCtx.resume();
+      try {
+        const decoded = await audioCtx.decodeAudioData(buf.slice(0));
+        const now = audioCtx.currentTime;
+        if (!nextPlayAt || nextPlayAt < now + 0.08 || nextPlayAt - now > 5) nextPlayAt = now + 0.2;
+        const src = audioCtx.createBufferSource();
+        src.buffer = decoded;
+        src.connect(audioCtx.destination);
+        src.start(nextPlayAt);
+        nextPlayAt += decoded.duration;
+        latencyText.textContent = `Signal audio reçu · tampon ${(Math.max(0, nextPlayAt - now)).toFixed(1)} s`;
+      } catch {
+        fallbackQueue.push(buf.slice(0));
+        if (fallbackQueue.length > 4) fallbackQueue.splice(0, fallbackQueue.length - 3);
+        playFallback();
+      }
+    };
+
+    listenBtn.onclick = async () => {
+      armed = !armed;
+      if (armed) {
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        await audioCtx.resume().catch(() => {});
+        nextPlayAt = 0;
+        listenBtn.textContent = '■ COUPER LE SON';
+        listenBtn.classList.add('active');
+        signalText.textContent = lastHeartbeat ? 'Écoute activée — attente du prochain segment…' : 'Écoute activée — attente du studio…';
+      } else {
+        listenBtn.textContent = '▶ ÉCOUTER LE DIRECT';
+        listenBtn.classList.remove('active');
+        nextPlayAt = 0;
+        fallbackQueue.length = 0;
+        if (audioCtx) await audioCtx.suspend().catch(() => {});
+      }
+    };
+
+    try {
+      const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2.116.0');
+      const supabase = createClient(cfg.supabaseUrl, cfg.supabasePublishableKey, {
+        auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+        realtime: { params: { eventsPerSecond: 20 } }
+      });
+      const channel = supabase.channel(cfg.realtimeTopic, { config: { broadcast: { ack: false, self: false } } });
+      channel
+        .on('broadcast', { event: 'radio-state' }, msg => {
+          const state = msg?.payload || {};
+          lastHeartbeat = Date.now();
+          currentMime = state.mime || currentMime;
+          if (state.title) nowTitle.textContent = state.title;
+          if (state.live) {
+            setLive(true, state.artist ? `${state.artist} · ${state.mode || 'EN DIRECT'}` : (state.mode || 'EN DIRECT'));
+            signalText.textContent = armed ? 'Studio connecté — écoute en cours.' : 'Studio connecté — clique sur ÉCOUTER LE DIRECT.';
+            badge.textContent = 'MASTER STUDIO';
+          } else {
+            setLive(false, 'Le studio est actuellement hors antenne.');
+            signalText.textContent = 'Hors antenne — la page attend le prochain direct.';
+          }
+        })
+        .on('broadcast', { event: 'audio-segment' }, msg => {
+          lastHeartbeat = Date.now();
+          const bin = extractBinary(msg);
+          if (bin?.byteLength) {
+            setLive(true);
+            void playSegment(bin);
+          }
+        })
+        .subscribe((status, err) => {
+          if (status === 'SUBSCRIBED') signalText.textContent = 'Connecté — en attente du signal du studio.';
+          else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') signalText.textContent = `Connexion radio impossible${err?.message ? ` : ${err.message}` : ''}`;
+        });
+
+      setInterval(() => {
+        if (lastHeartbeat && Date.now() - lastHeartbeat > 12000) {
+          setLive(false, 'Le studio ne transmet pas actuellement.');
+          signalText.textContent = 'Aucun signal récent — attente du studio.';
+          lastHeartbeat = 0;
+        }
+      }, 3000);
+    } catch (err) {
+      signalText.textContent = `Pont radio indisponible : ${err.message}`;
+      badge.textContent = 'ERREUR CONNEXION';
+    }
+  };
+
+  if (cfg.realtimeEnabled && cfg.supabaseUrl && cfg.supabasePublishableKey && cfg.realtimeTopic) {
+    await setupRealtimeBridge();
+  } else if (cfg.audioStreamUrl) {
     setAudio(cfg.audioStreamUrl);
   } else if (cfg.twitchChannel) {
     setIframe(
