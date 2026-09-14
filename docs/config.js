@@ -1,9 +1,13 @@
 window.MSR_PUBLIC_CONFIG = {
   stationName: "Manu Stream Radio",
-  tagline: "La radio de Manu — en direct quand l'antenne s'allume.",
+  tagline: "La radio de Manu — le MASTER du studio en direct.",
   audioStreamUrl: "",
+  realtimeEnabled: true,
+  supabaseUrl: "https://xpmrnwipnoekiycghwli.supabase.co",
+  supabasePublishableKey: "sb_publishable_CK-3LTMSP2aIdbFSFSQk1A_f5DRBlj4",
+  realtimeTopic: "manu-stream-radio-master-v20",
   twitchChannel: "",
   youtubeChannelId: "",
-  nextShow: "Prochain direct à annoncer",
+  nextShow: "Programmation Manu Stream Radio",
   contactText: "Manu Stream"
 };
