@@ -1,0 +1,42 @@
+# Manu Stream Radio — fichiers locaux / privés
+*.mp3
+*.wav
+*.flac
+*.aac
+*.m4a
+*.ogg
+*.webm
+*.mp4
+*.mov
+*.mkv
+*.zip
+*.exe
+*.msi
+
+# Secrets / configuration locale
+.env
+.env.*
+!.env.example
+config.local.js
+settings.local.json
+*token*
+*.key
+*.pem
+
+# Médiathèque / enregistrements
+media/
+music/
+recordings/
+exports/
+library/
+
+# Build / OS / IDE
+dist/
+build/
+node_modules/
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+__pycache__/
+*.pyc
