@@ -27,14 +27,14 @@ Array.prototype.filter=function(...args){
   const result=nativeFilter.apply(this,args);
   if(!directRotationCaller()||result.length<2||!result.every(x=>x&&typeof x==='object'&&typeof x.id==='string'))return result;
   const ids=result.map(x=>x.id),allowed=new Set(ids);
-  state.queue=state.queue.filter(id=>allowed.has(id));
-  const missing=ids.filter(id=>!state.queue.includes(id));
+  state.queue=nativeFilter.call(state.queue,id=>allowed.has(id));
+  const missing=nativeFilter.call(ids,id=>!state.queue.includes(id));
   if(!state.queue.length){state.queue=shuffled(ids);state.cycle=(state.cycle||0)+1;}
   else if(missing.length){state.queue.push(...shuffled(missing));}
   const nextId=state.queue.find(id=>allowed.has(id));
   if(!nextId)return result;
-  state.queue=state.queue.filter(id=>id!==nextId);state.lastPicked=nextId;save();
-  const first=result.find(x=>x.id===nextId),rest=result.filter(x=>x.id!==nextId);
+  state.queue=nativeFilter.call(state.queue,id=>id!==nextId);state.lastPicked=nextId;save();
+  const first=result.find(x=>x.id===nextId),rest=nativeFilter.call(result,x=>x.id!==nextId);
   return first?[first,...rest]:result;
 };
 Math.random=function(){
