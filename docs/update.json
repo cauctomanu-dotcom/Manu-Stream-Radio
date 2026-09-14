@@ -1,0 +1,6 @@
+{
+  "version": "1.9.0",
+  "downloadUrl": "",
+  "sha256": "4ed6964c6b52dbbde0931981fdef3adea87fbfd5824ea756eef6afa27bbaba04",
+  "notes": "V1.9 : Conducteur LIVE avec horaires cibles, onglet Programmation 24H séparé, reprise automatique de l'automation, choix de fin de direct et arrêt total."
+}
