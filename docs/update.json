@@ -1,6 +1,19 @@
 {
-  "version": "2.0.0",
-  "downloadUrl": "",
-  "sha256": "03b9c9be2e57fd7b6c78f954c9f005f1f478df363cf92ee769d9caac8bdf4749",
-  "notes": "V2.0 test radio : agenda hebdomadaire 7j/24h, placement de rotations/musiques/pubs/jingles/emissions, destinations Web Radio/Twitch/YouTube, pont MASTER vers la page auditeurs via Supabase Realtime et lanceur mono-instance."
+  "version": "2.0.2",
+  "mode": "web-patch-v1",
+  "notes": "V2.0.2 transition : mise a jour automatique reactivee. Le lanceur verifie GitHub avant ouverture, telecharge les futurs fichiers web de la regie, verifie leur SHA-256, conserve une sauvegarde et restaure automatiquement l'ancienne version si le nouveau moteur ne demarre pas.",
+  "assets": {
+    "style": {
+      "url": "https://raw.githubusercontent.com/cauctomanu-dotcom/Manu-Stream-Radio/main/app/web/style.css",
+      "sha256": "ff44113a1929574de9455cfec69278f480acf89b0e3fac39e188918f71eff137"
+    },
+    "index": {
+      "url": "https://raw.githubusercontent.com/cauctomanu-dotcom/Manu-Stream-Radio/main/app/web/index.html",
+      "sha256": "6e75e6d00e34cf9fe3715c8dc3ade4c4034d43693c158de70d6140fd5f1b9eba"
+    },
+    "app": {
+      "url": "https://raw.githubusercontent.com/cauctomanu-dotcom/Manu-Stream-Radio/main/app/web/app.js",
+      "sha256": "bb02e98ee1fb53c4529fd763bd7a69dbf490e5dc4fae4111b6e215a15d423ac1"
+    }
+  }
 }
