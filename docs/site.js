@@ -13,6 +13,26 @@
   const sub = $('nowSub');
   const liveBadge = $('liveBadge');
   const nowTitle = $('nowTitle');
+  const renderAudienceMessage = raw => {
+    const text = String(raw || '').replace(/\s+/g, ' ').trim().slice(0, 240);
+    let el = $('audienceMessageBanner');
+    if (!el) {
+      el = document.createElement('section');
+      el.id = 'audienceMessageBanner';
+      el.className = 'audience-message-banner';
+      el.hidden = true;
+      const nowCard = document.querySelector('.now-card');
+      if (nowCard) nowCard.insertAdjacentElement('afterend', el);
+    }
+    if (!el) return;
+    if (!text) {
+      el.hidden = true;
+      el.replaceChildren();
+      return;
+    }
+    el.innerHTML = `<span class="audience-message-icon">📣</span><div><small>MESSAGE DE MANU</small><strong>${text.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]))}</strong></div>`;
+    el.hidden = false;
+  };
   const VOLUME_KEY = 'msr-listener-volume-v1';
   const MUTE_KEY = 'msr-listener-muted-v1';
   let listenerVolume = Math.min(1, Math.max(0, Number(localStorage.getItem(VOLUME_KEY) ?? 80) / 100));
@@ -283,6 +303,7 @@
           lastHeartbeat = Date.now();
           currentMime = state.mime || currentMime;
           if (state.title) nowTitle.textContent = state.title;
+          if (Object.prototype.hasOwnProperty.call(state, 'listenerMessage')) renderAudienceMessage(state.listenerMessage);
           if (state.live) {
             setLive(true, state.artist ? `${state.artist} · ${state.mode || 'EN DIRECT'}` : (state.mode || 'EN DIRECT'));
             signalText.textContent = armed ? 'Studio connecté — écoute en cours.' : 'Studio connecté — clique sur ÉCOUTER LE DIRECT.';
@@ -291,6 +312,9 @@
             setLive(false, 'Le studio est actuellement hors antenne.');
             signalText.textContent = 'Hors antenne — la page attend le prochain direct.';
           }
+        })
+        .on('broadcast', { event: 'listener-message' }, msg => {
+          renderAudienceMessage(msg?.payload?.message || '');
         })
         .on('broadcast', { event: 'audio-segment' }, msg => {
           lastHeartbeat = Date.now();
