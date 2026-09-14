@@ -36,6 +36,23 @@ Le projet de serveur radio permanent / AutoDJ (AzuraCast, VPS, diffusion H24 ind
 - overlay radio ;
 - page publique GitHub Pages en préparation.
 
+## Module Bulletin Infos / Météo
+
+La branche `feature/bulletin-jingles` ajoute un studio d'enregistrement dédié aux bulletins quotidiens dans `app/web/bulletin.html`.
+
+Le module permet de :
+
+- choisir **Infos** ou **Météo** ;
+- enregistrer la voix depuis le micro choisi ;
+- sélectionner un jingle **Intro**, **Transition** et **Outro** depuis la bibliothèque existante ;
+- déclencher les pads déjà affectés dans la soundboard ;
+- mixer les jingles directement dans l'enregistrement final ;
+- appliquer un ducking simple quand la voix passe au-dessus du jingle ;
+- préécouter et télécharger le fichier final ;
+- ajouter automatiquement le bulletin terminé à la bibliothèque locale de Manu Stream Radio.
+
+Le résultat est donc un seul fichier contenant déjà la voix et les jingles, prêt à être placé dans la programmation sans devoir resynchroniser les jingles au moment de la diffusion.
+
 ## Structure
 
 ```text
