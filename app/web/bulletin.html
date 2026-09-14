@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Manu Stream Radio — Bulletin Infos / Météo</title>
+  <link rel="stylesheet" href="/bulletin.css">
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <a class="back" href="/">← Régie principale</a>
+      <h1>MANU STREAM RADIO</h1>
+      <p>Enregistrement bulletin Infos / Météo avec jingles intégrés</p>
+    </div>
+    <div class="recstate"><i id="recordLamp"></i><span id="recordState">PRÊT</span><b id="timer">00:00</b></div>
+  </header>
+
+  <main class="layout">
+    <section class="panel main-panel">
+      <div class="section-head"><div><span class="eyebrow">BULLETIN DU JOUR</span><h2>Enregistrer la voix + les jingles dans un seul fichier</h2></div></div>
+      <div class="choice-row">
+        <label>TYPE DE BULLETIN
+          <select id="bulletinType" class="input"><option value="news">Infos</option><option value="weather">Météo</option></select>
+        </label>
+        <label class="check"><input id="autoLibrary" type="checkbox" checked> Ajouter automatiquement le résultat à la bibliothèque Manu Stream Radio</label>
+      </div>
+
+      <div class="mic-card">
+        <div class="mic-top"><div><span class="eyebrow">MICRO</span><h3>Voix du bulletin</h3></div><div class="mic-actions"><button id="refreshMic" class="btn">↻ Micros</button><button id="connectMic" class="btn primary">ACTIVER LE MICRO</button></div></div>
+        <select id="micSelect" class="input"><option value="">Micro par défaut</option></select>
+        <div class="meter"><i id="micMeter"></i></div>
+        <div class="sliders">
+          <label>NIVEAU MICRO <b id="micLevelValue">100%</b><input id="micLevel" type="range" min="0" max="2" value="1" step="0.01"></label>
+        </div>
+        <div class="checks">
+          <label class="check"><input id="noiseSuppression" type="checkbox" checked> Réduction de bruit</label>
+          <label class="check"><input id="echoCancellation" type="checkbox"> Annulation d'écho</label>
+          <label class="check"><input id="autoGain" type="checkbox"> Gain automatique</label>
+        </div>
+      </div>
+
+      <div class="transport">
+        <button id="recordBtn" class="rec-btn">● DÉMARRER L'ENREGISTREMENT</button>
+        <button id="stopBtn" class="stop-btn" disabled>■ TERMINER ET SAUVEGARDER</button>
+      </div>
+      <div id="status" class="status">Initialisation…</div>
+
+      <div id="previewBox" class="preview" hidden>
+        <h3>Dernier bulletin</h3>
+        <audio id="preview" controls></audio>
+        <a id="downloadLink" class="btn primary" href="#">Télécharger</a>
+      </div>
+    </section>
+
+    <aside class="panel jingle-panel">
+      <div class="section-head"><div><span class="eyebrow">JINGLES</span><h2>Déclenchement pendant le REC</h2></div></div>
+      <p class="hint">Chaque jingle lancé pendant l'enregistrement est directement mixé avec ta voix dans le fichier final.</p>
+
+      <div class="jingle-slot">
+        <label>INTRO<select id="introSelect" class="input"></select></label>
+        <button id="introBtn" class="jingle-btn">▶ LANCER INTRO</button>
+      </div>
+      <div class="jingle-slot">
+        <label>TRANSITION<select id="transitionSelect" class="input"></select></label>
+        <button id="transitionBtn" class="jingle-btn important">▶ LANCER TRANSITION</button>
+      </div>
+      <div class="jingle-slot">
+        <label>OUTRO<select id="outroSelect" class="input"></select></label>
+        <button id="outroBtn" class="jingle-btn">▶ LANCER OUTRO</button>
+      </div>
+
+      <div class="mix-box">
+        <label>NIVEAU JINGLES <b id="jingleLevelValue">90%</b><input id="jingleLevel" type="range" min="0" max="1.2" value="0.9" step="0.01"></label>
+        <label class="check"><input id="ducking" type="checkbox" checked> Baisser automatiquement le jingle quand je parle</label>
+        <label>JINGLE SOUS LA VOIX <b id="duckLevelValue">35%</b><input id="duckLevel" type="range" min="0.1" max="1" value="0.35" step="0.05"></label>
+        <label class="check"><input id="monitorJingles" type="checkbox" checked> Écouter les jingles dans les haut-parleurs pendant l'enregistrement</label>
+      </div>
+
+      <div class="pads-head"><span class="eyebrow">SOUNDBOARD EXISTANTE</span><h3>Mes pads</h3></div>
+      <div id="padGrid" class="pad-grid"></div>
+    </aside>
+  </main>
+
+  <div id="toast" class="toast"></div>
+  <script src="/bulletin.js"></script>
+</body>
+</html>
