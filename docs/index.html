@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#090b11">
   <title>Manu Stream Radio — Écouter</title>
-  <meta name="description" content="Écouter Manu Stream Radio en direct depuis une seule page.">
+  <meta name="description" content="Écouter le Master de Manu Stream Radio en direct depuis une seule page.">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -24,35 +24,35 @@
       <div>
         <p class="eyebrow">À L'ANTENNE</p>
         <h2 id="nowTitle">Manu Stream Radio</h2>
-        <p id="nowSub">Le lecteur se connecte automatiquement au direct disponible.</p>
+        <p id="nowSub">Connexion au Master du studio…</p>
       </div>
       <div class="next">
-        <span>PROCHAIN DIRECT</span>
-        <strong id="nextShow">À annoncer</strong>
+        <span>PROGRAMMATION</span>
+        <strong id="nextShow">Manu Stream Radio</strong>
       </div>
     </section>
 
     <section class="single-player-wrap" aria-label="Lecteur Manu Stream Radio">
       <div class="player-heading">
         <div>
-          <p class="eyebrow">LECTEUR UNIQUE</p>
+          <p class="eyebrow">LECTEUR RADIO</p>
           <h2>Écouter le direct</h2>
         </div>
-        <span id="sourceBadge" class="source-badge">SOURCE AUTO</span>
+        <span id="sourceBadge" class="source-badge">CONNEXION STUDIO</span>
       </div>
       <div id="mainPlayer" class="player empty">
         <div class="placeholder">
-          <b>Le flux n'est pas encore configuré</b>
-          <span>La page utilisera automatiquement le flux radio direct, ou à défaut le live Twitch/YouTube configuré.</span>
+          <b>Connexion à Manu Stream Radio…</b>
+          <span>Le lecteur attend le signal du MASTER de la régie.</span>
         </div>
       </div>
-      <p class="player-note">Aucun choix à faire : la meilleure source disponible est sélectionnée automatiquement.</p>
+      <p class="player-note">Quand le studio transmet, clique une fois sur « Écouter le direct » pour autoriser le son dans ton navigateur.</p>
     </section>
 
     <section class="info-grid">
-      <article><span>01</span><h3>Un seul lecteur</h3><p>Les auditeurs ouvrent cette adresse et écoutent directement, sans avoir à choisir Twitch ou YouTube.</p></article>
-      <article><span>02</span><h3>Source automatique</h3><p>Le lecteur privilégie le flux radio direct. Tant qu'il n'existe pas, il peut utiliser automatiquement Twitch ou YouTube.</p></article>
-      <article><span>03</span><h3>Même adresse demain</h3><p>Quand le serveur radio H24 sera activé, l'adresse publique restera la même : seul le moteur audio changera derrière.</p></article>
+      <article><span>01</span><h3>Le Master du studio</h3><p>Musique, micros, invités, jingles et pubs utilisent la même sortie Master que la régie.</p></article>
+      <article><span>02</span><h3>Une seule adresse</h3><p>Les auditeurs restent sur cette page : aucun choix Twitch ou YouTube n'est nécessaire pour écouter la radio.</p></article>
+      <article><span>03</span><h3>Mode test</h3><p>Le pont audio actuel utilise Supabase Realtime pour nos essais. Il sera ensuite remplacé par un relais radio permanent.</p></article>
     </section>
 
     <footer><span id="contactText">Manu Stream</span><span>•</span><span>Manu Stream Radio</span></footer>
