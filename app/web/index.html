@@ -132,9 +132,9 @@
       <div class="auto24-top">
         <label class="check"><input id="auto24Enabled" type="checkbox"> Activer l’automation 24H</label>
         <label class="check"><input id="auto24KeepLive" type="checkbox" checked> Maintenir Streamlabs en LIVE automatiquement</label>
-        <label class="check"><input id="auto24Shuffle" type="checkbox" checked> Mélanger la rotation musicale</label>
+        <label class="check"><input id="auto24Shuffle" type="checkbox" checked> Mélange intelligent de la rotation musicale</label>
       </div>
-      <div class="auto24-help"><b>Rotation musique</b> joue la bibliothèque en continu. Un <b>média fixe</b> interrompt la rotation à l’heure prévue (parfait pour une émission préenregistrée, une pub ou un top horaire), puis la rotation reprend.</div>
+      <div class="auto24-help"><b>Rotation musique</b> joue la bibliothèque en continu. Le mélange intelligent conserve un ordre aléatoire entre les blocs et évite de repartir sans cesse sur les mêmes titres. Un <b>média fixe</b> interrompt la rotation à l’heure prévue, puis la rotation reprend là où elle en était.</div>
       <div class="auto24-actions"><button id="auto24AddRotation" type="button" class="btn primary">+ ROTATION MUSIQUE</button><button id="auto24AddTrack" type="button" class="btn">+ MÉDIA FIXE</button></div><div class="auto24-musicbox"><div class="auto24-musichead"><b>TITRES DE LA ROTATION</b><span><button id="auto24SelectAll" type="button" class="btn compact">Tout</button> <button id="auto24SelectNone" type="button" class="btn compact">Aucun</button></span></div><div id="auto24RotationPicker" class="auto24-rotation-picker"></div></div>
       <div class="auto24-grid-head"><span>HEURE</span><span>TYPE / CONTENU</span><span></span></div>
       <div id="auto24Rows" class="auto24-rows"></div>
@@ -225,13 +225,14 @@
         <section><span class="step">4</span><h3>Prendre un appel</h3><p><b>+ Ajouter un invité</b> → source <b>Application Windows</b> → <b>Choisir WhatsApp / Discord…</b>. Dans le sélecteur Windows/Edge, choisis la fenêtre de l'appel et partage son audio. Si aucune piste audio n'est fournie, bascule la tranche sur <b>Entrée / câble virtuel</b>.</p></section>
         <section><span class="step">5</span><h3>Remplir la soundboard</h3><p>Un pad vide affiche <b>+ ASSIGNER</b>. Clique dessus, choisis un son. Un pad rempli se joue d'un clic ; la petite roue dentée permet de le changer.</p></section>
         <section><span class="step">6</span><h3>Streamlabs</h3><p>Ajoute dans Streamlabs une <b>Application Audio Capture</b> ciblant la fenêtre Edge "Manu Stream Radio", puis une <b>Browser Source</b> avec l'URL overlay. Le guide PDF fourni avec l'EXE détaille tout.</p></section>
-        <section><span class="step">7</span><h3>Auto 24H</h3><p>Prépare les heures fixes et la rotation musicale, coche <b>Activer l’automation 24H</b> puis clique sur <b>ARMER / APPLIQUER</b>. Laisse l’application et le PC allumés ; les programmes fixes coupent la rotation puis celle-ci reprend automatiquement.</p></section>
+        <section><span class="step">7</span><h3>Auto 24H</h3><p>Le mélange intelligent garde une file de titres déjà mélangée afin qu'une nouvelle rotation ne reparte pas sur les mêmes morceaux dans le même ordre. Les programmes fixes coupent la rotation puis elle reprend ensuite.</p></section>
       </div>
       <div class="callout">Conseil : fais toujours un test avec <b>REC MASTER</b> et un enregistrement Streamlabs avant un vrai direct.</div>
     </form>
   </dialog>
 
   <input id="artworkInput" type="file" accept="image/*" hidden />
+  <script src="/smart-rotation.js?v=1"></script>
   <script src="/app.js?v=1.7"></script>
 </body>
 </html>
