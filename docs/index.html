@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#090b11">
+  <title>Manu Stream Radio — Écouter</title>
+  <meta name="description" content="Écouter Manu Stream Radio en direct depuis une seule page.">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main class="shell">
+    <header class="hero">
+      <div class="brandmark">MSR</div>
+      <div>
+        <p class="eyebrow">WEBRADIO / LIVE</p>
+        <h1 id="stationName">Manu Stream Radio</h1>
+        <p id="tagline" class="tagline">La radio de Manu.</p>
+      </div>
+      <div id="liveBadge" class="live-badge offline"><span></span> HORS ANTENNE</div>
+    </header>
+
+    <section class="now-card">
+      <div>
+        <p class="eyebrow">À L'ANTENNE</p>
+        <h2 id="nowTitle">Manu Stream Radio</h2>
+        <p id="nowSub">Choisis le lecteur que tu préfères.</p>
+      </div>
+      <div class="next">
+        <span>PROCHAIN DIRECT</span>
+        <strong id="nextShow">À annoncer</strong>
+      </div>
+    </section>
+
+    <nav class="tabs" aria-label="Choisir le lecteur">
+      <button class="tab active" data-target="twitchPanel">Twitch</button>
+      <button class="tab" data-target="youtubePanel">YouTube</button>
+    </nav>
+
+    <section id="twitchPanel" class="player-panel active">
+      <div id="twitchPlayer" class="player empty">
+        <div class="placeholder">
+          <b>Twitch n'est pas encore configuré</b>
+          <span>Le pseudo de chaîne sera renseigné dans <code>docs/config.js</code>.</span>
+        </div>
+      </div>
+    </section>
+
+    <section id="youtubePanel" class="player-panel">
+      <div id="youtubePlayer" class="player empty">
+        <div class="placeholder">
+          <b>YouTube n'est pas encore configuré</b>
+          <span>L'identifiant de chaîne sera renseigné dans <code>docs/config.js</code>.</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="info-grid">
+      <article><span>01</span><h3>Une seule adresse</h3><p>Les auditeurs gardent cette page et choisissent leur lecteur sans chercher les chaînes.</p></article>
+      <article><span>02</span><h3>Streamlabs derrière</h3><p>La diffusion reste gérée par Streamlabs vers Twitch et YouTube, avec ton habillage vidéo.</p></article>
+      <article><span>03</span><h3>Évolutif</h3><p>Plus tard, cette même page pourra accueillir le flux radio direct du futur serveur H24.</p></article>
+    </section>
+
+    <footer><span id="contactText">Manu Stream</span><span>•</span><span>Manu Stream Radio</span></footer>
+  </main>
+  <script src="config.js"></script>
+  <script src="site.js"></script>
+</body>
+</html>
