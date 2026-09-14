@@ -20,7 +20,7 @@ jobs:
         run: |
           set -euo pipefail
           [ -f v18-patch/READY ] || exit 0
-          base64 -d v18-patch/patch.b64 > /tmp/v18-patch.zip
+          cat v18-patch/chunk-* | base64 -d > /tmp/v18-patch.zip
           rm -rf /tmp/v18-patch
           mkdir -p /tmp/v18-patch
           unzip -q /tmp/v18-patch.zip -d /tmp/v18-patch
