@@ -1,0 +1,43 @@
+name: Import V1.7 source snapshot
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'bootstrap/READY'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Rebuild and import source snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+          [ -f bootstrap/READY ] || exit 0
+          cat bootstrap/chunk-*.b64 | base64 -d > /tmp/msr-bootstrap.zip
+          rm -rf /tmp/msr-bootstrap
+          mkdir -p /tmp/msr-bootstrap
+          unzip -q /tmp/msr-bootstrap.zip -d /tmp/msr-bootstrap
+          SRC=/tmp/msr-bootstrap/Manu-Stream-Radio-GitHub
+          test -f "$SRC/app/web/app.js"
+          test -f "$SRC/app/web/index.html"
+          test -f "$SRC/app/web/style.css"
+          rsync -a \
+            --exclude='.github/' \
+            --exclude='README.md' \
+            --exclude='architecture/ROADMAP.md' \
+            "$SRC/" ./
+          rm -rf bootstrap
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git diff --cached --quiet && exit 0
+          git commit -m 'Import Manu Stream Radio V1.7 source snapshot'
+          git push
