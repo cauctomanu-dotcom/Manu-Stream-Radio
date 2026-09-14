@@ -13,6 +13,55 @@
   const sub = $('nowSub');
   const liveBadge = $('liveBadge');
   const nowTitle = $('nowTitle');
+  const VOLUME_KEY = 'msr-listener-volume-v1';
+  const MUTE_KEY = 'msr-listener-muted-v1';
+  let listenerVolume = Math.min(1, Math.max(0, Number(localStorage.getItem(VOLUME_KEY) ?? 80) / 100));
+  let listenerMuted = localStorage.getItem(MUTE_KEY) === '1';
+
+  const volumeMarkup = () => `
+    <div class="volume-control" aria-label="Volume d'écoute">
+      <button id="volumeMuteBtn" class="volume-btn mute" type="button" aria-label="Couper ou remettre le son">${listenerMuted ? '🔇' : '🔊'}</button>
+      <button id="volumeDownBtn" class="volume-btn" type="button" aria-label="Baisser le volume">−</button>
+      <input id="listenerVolume" class="volume-slider" type="range" min="0" max="100" step="1" value="${Math.round(listenerVolume * 100)}" aria-label="Volume">
+      <button id="volumeUpBtn" class="volume-btn" type="button" aria-label="Monter le volume">+</button>
+      <strong id="volumeValue" class="volume-value">${listenerMuted ? 0 : Math.round(listenerVolume * 100)}%</strong>
+    </div>`;
+
+  const bindVolumeControls = applyVolume => {
+    const slider = $('listenerVolume');
+    const value = $('volumeValue');
+    const muteBtn = $('volumeMuteBtn');
+    const downBtn = $('volumeDownBtn');
+    const upBtn = $('volumeUpBtn');
+    if (!slider || !value || !muteBtn || !downBtn || !upBtn) return;
+
+    const render = () => {
+      slider.value = String(Math.round(listenerVolume * 100));
+      value.textContent = `${listenerMuted ? 0 : Math.round(listenerVolume * 100)}%`;
+      muteBtn.textContent = listenerMuted ? '🔇' : (listenerVolume < 0.5 ? '🔉' : '🔊');
+      muteBtn.classList.toggle('active', listenerMuted);
+      applyVolume(listenerMuted ? 0 : listenerVolume);
+    };
+
+    const setVolume = percent => {
+      const p = Math.min(100, Math.max(0, Math.round(percent)));
+      listenerVolume = p / 100;
+      if (p > 0) listenerMuted = false;
+      localStorage.setItem(VOLUME_KEY, String(p));
+      localStorage.setItem(MUTE_KEY, listenerMuted ? '1' : '0');
+      render();
+    };
+
+    slider.addEventListener('input', () => setVolume(Number(slider.value)));
+    downBtn.addEventListener('click', () => setVolume(listenerVolume * 100 - 10));
+    upBtn.addEventListener('click', () => setVolume(listenerVolume * 100 + 10));
+    muteBtn.addEventListener('click', () => {
+      listenerMuted = !listenerMuted;
+      localStorage.setItem(MUTE_KEY, listenerMuted ? '1' : '0');
+      render();
+    });
+    render();
+  };
 
   const setLive = (live, text) => {
     liveBadge.classList.toggle('live', !!live);
@@ -35,7 +84,7 @@
   const setAudio = src => {
     const wrap = document.createElement('div');
     wrap.className = 'audio-stage';
-    wrap.innerHTML = `<div class="radio-disc"><span>MSR</span></div><div class="audio-copy"><p class="eyebrow">FLUX RADIO DIRECT</p><h3>${stationName}</h3><p>Appuie sur lecture pour écouter le direct.</p></div>`;
+    wrap.innerHTML = `<div class="radio-disc"><span>MSR</span></div><div class="audio-copy"><p class="eyebrow">FLUX RADIO DIRECT</p><h3>${stationName}</h3><p>Appuie sur lecture pour écouter le direct.</p>${volumeMarkup()}</div>`;
     const audio = document.createElement('audio');
     audio.controls = true;
     audio.preload = 'none';
@@ -44,6 +93,7 @@
     box.classList.remove('empty', 'realtime-mode');
     box.classList.add('audio-mode');
     box.replaceChildren(wrap);
+    bindVolumeControls(v => { audio.volume = v; });
     badge.textContent = 'FLUX RADIO DIRECT';
     sub.textContent = 'Flux radio direct intégré.';
   };
@@ -59,6 +109,7 @@
           <h3>${stationName}</h3>
           <p id="radioSignalText">Connexion au studio…</p>
           <button id="listenLiveBtn" class="listen-button" type="button">▶ ÉCOUTER LE DIRECT</button>
+          ${volumeMarkup()}
           <small id="radioLatencyText">Tampon anti-coupures activé · quelques secondes de retard sont normales.</small>
         </div>
       </div>`;
@@ -70,15 +121,32 @@
     const BUFFER_SEGMENTS = 3;
     let armed = false;
     let audioCtx = null;
+    let masterGain = null;
     let nextPlayAt = 0;
     let lastHeartbeat = 0;
     let currentMime = 'audio/webm;codecs=opus';
     let decoding = false;
     let primed = false;
     let fallbackPlaying = false;
+    let fallbackAudio = null;
     const rawQueue = [];
     const decodedQueue = [];
     const fallbackQueue = [];
+
+    const ensureAudioContext = () => {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        masterGain = audioCtx.createGain();
+        masterGain.gain.value = listenerMuted ? 0 : listenerVolume;
+        masterGain.connect(audioCtx.destination);
+      }
+      return audioCtx;
+    };
+
+    bindVolumeControls(v => {
+      if (masterGain && audioCtx) masterGain.gain.setValueAtTime(v, audioCtx.currentTime);
+      if (fallbackAudio) fallbackAudio.volume = v;
+    });
 
     const extractBinary = msg => {
       const p = msg?.payload ?? msg;
@@ -95,19 +163,23 @@
       const buf = fallbackQueue.shift();
       const url = URL.createObjectURL(new Blob([buf], { type: currentMime }));
       const audio = new Audio(url);
+      fallbackAudio = audio;
+      audio.volume = listenerMuted ? 0 : listenerVolume;
       audio.onended = audio.onerror = () => {
         URL.revokeObjectURL(url);
         fallbackPlaying = false;
+        fallbackAudio = null;
         playFallback();
       };
       audio.play().catch(() => {
         URL.revokeObjectURL(url);
         fallbackPlaying = false;
+        fallbackAudio = null;
       });
     };
 
     const pumpDecoded = () => {
-      if (!armed || !audioCtx) return;
+      if (!armed || !audioCtx || !masterGain) return;
       const now = audioCtx.currentTime;
       if (primed && nextPlayAt && nextPlayAt < now + 0.06) {
         primed = false;
@@ -126,7 +198,7 @@
         const decoded = decodedQueue.shift();
         const src = audioCtx.createBufferSource();
         src.buffer = decoded;
-        src.connect(audioCtx.destination);
+        src.connect(masterGain);
         src.start(nextPlayAt);
         nextPlayAt += decoded.duration;
       }
@@ -135,7 +207,7 @@
 
     const processRawQueue = async () => {
       if (decoding || !armed) return;
-      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      ensureAudioContext();
       decoding = true;
       try {
         while (armed && rawQueue.length) {
@@ -170,7 +242,7 @@
     listenBtn.onclick = async () => {
       armed = !armed;
       if (armed) {
-        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        ensureAudioContext();
         await audioCtx.resume().catch(() => {});
         nextPlayAt = 0;
         primed = false;
@@ -189,6 +261,11 @@
         rawQueue.length = 0;
         decodedQueue.length = 0;
         fallbackQueue.length = 0;
+        if (fallbackAudio) {
+          fallbackAudio.pause();
+          fallbackAudio = null;
+          fallbackPlaying = false;
+        }
         if (audioCtx) await audioCtx.suspend().catch(() => {});
       }
     };
