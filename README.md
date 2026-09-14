@@ -44,14 +44,26 @@ Le module permet de :
 
 - choisir **Infos** ou **Météo** ;
 - enregistrer la voix depuis le micro choisi ;
-- sélectionner un jingle **Intro**, **Transition** et **Outro** depuis la bibliothèque existante ;
-- déclencher les pads déjà affectés dans la soundboard ;
-- mixer les jingles directement dans l'enregistrement final ;
-- appliquer un ducking simple quand la voix passe au-dessus du jingle ;
-- préécouter et télécharger le fichier final ;
+- sélectionner un jingle **Intro**, **Transition** et **Sortie** depuis la bibliothèque existante ;
+- choisir pour chaque jingle sa position : **avant la voix**, **pendant le REC** ou **après la voix** ;
+- construire automatiquement le fichier final une fois la voix enregistrée ;
+- déclencher manuellement les pads déjà affectés dans la soundboard pendant le REC ;
+- appliquer un ducking aux jingles déclenchés manuellement sous la voix ;
+- préécouter et télécharger le bulletin final ;
 - ajouter automatiquement le bulletin terminé à la bibliothèque locale de Manu Stream Radio.
 
-Le résultat est donc un seul fichier contenant déjà la voix et les jingles, prêt à être placé dans la programmation sans devoir resynchroniser les jingles au moment de la diffusion.
+Les jingles placés avant ou après la voix sont donc ajoutés au montage final sans avoir besoin de les lancer au bon moment pendant l'enregistrement.
+
+## Rotation musicale intelligente
+
+La branche ajoute également une file de mélange persistante pour l'AUTO 24H :
+
+- les titres d'une rotation sont mélangés en file plutôt que re-tirés indépendamment à chaque morceau ;
+- la file continue entre deux blocs de rotation et après un média fixe ;
+- un nouveau cycle n'est préparé qu'après parcours de la file en cours ;
+- le dernier morceau joué n'est pas immédiatement remis en tête du cycle suivant.
+
+L'objectif est d'éviter que plusieurs rotations repartent systématiquement avec les mêmes morceaux dans le même ordre.
 
 ## Structure
 
