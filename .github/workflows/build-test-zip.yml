@@ -1,0 +1,138 @@
+name: Build test ZIP
+
+on:
+  push:
+    branches:
+      - feature/bulletin-jingles
+    paths:
+      - 'app/web/**'
+      - '.github/workflows/build-test-zip.yml'
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Prepare standalone test pack
+        shell: pwsh
+        run: |
+          $pack = Join-Path $env:RUNNER_TEMP 'Manu-Stream-Radio-TEST-Jingles-Rotation'
+          New-Item -ItemType Directory -Force -Path $pack | Out-Null
+          Copy-Item -Recurse -Force 'app/web/*' $pack
+
+          @'
+          @echo off
+          title Manu Stream Radio - TEST
+          cd /d "%~dp0"
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0server.ps1"
+          '@ | Set-Content -Encoding ASCII (Join-Path $pack 'LANCER-TEST.bat')
+
+          @'
+          param([int]$Port = 17340)
+          $ErrorActionPreference = 'Stop'
+          $root = Split-Path -Parent $MyInvocation.MyCommand.Path
+          $listener = [System.Net.HttpListener]::new()
+          $prefix = "http://127.0.0.1:$Port/"
+          $listener.Prefixes.Add($prefix)
+          try { $listener.Start() } catch {
+            Write-Host "Impossible de démarrer le serveur local sur $prefix" -ForegroundColor Red
+            Write-Host $_.Exception.Message
+            Read-Host "Appuie sur Entree"
+            exit 1
+          }
+          Write-Host "Manu Stream Radio TEST" -ForegroundColor Cyan
+          Write-Host "Adresse locale : $prefix"
+          Write-Host "AUCUNE MISE A JOUR AUTOMATIQUE dans ce pack." -ForegroundColor Yellow
+          Start-Sleep -Milliseconds 400
+          try { Start-Process 'msedge.exe' $prefix } catch { Start-Process $prefix }
+
+          function Send-Json($ctx, $obj, [int]$status=200) {
+            $json = $obj | ConvertTo-Json -Depth 8 -Compress
+            $bytes = [Text.Encoding]::UTF8.GetBytes($json)
+            $ctx.Response.StatusCode = $status
+            $ctx.Response.ContentType = 'application/json; charset=utf-8'
+            $ctx.Response.ContentLength64 = $bytes.Length
+            $ctx.Response.OutputStream.Write($bytes,0,$bytes.Length)
+            $ctx.Response.Close()
+          }
+          function Mime-Type([string]$path) {
+            switch ([IO.Path]::GetExtension($path).ToLowerInvariant()) {
+              '.html' { 'text/html; charset=utf-8' }
+              '.js'   { 'application/javascript; charset=utf-8' }
+              '.css'  { 'text/css; charset=utf-8' }
+              '.json' { 'application/json; charset=utf-8' }
+              '.png'  { 'image/png' }
+              '.jpg'  { 'image/jpeg' }
+              '.jpeg' { 'image/jpeg' }
+              '.svg'  { 'image/svg+xml' }
+              '.ico'  { 'image/x-icon' }
+              default { 'application/octet-stream' }
+            }
+          }
+
+          $running = $true
+          while ($running -and $listener.IsListening) {
+            try { $ctx = $listener.GetContext() } catch { break }
+            $path = [Uri]::UnescapeDataString($ctx.Request.Url.AbsolutePath)
+            if ($path.StartsWith('/api/')) {
+              if ($path -eq '/api/quit') { Send-Json $ctx @{ok=$true}; $running=$false; continue }
+              if ($path -eq '/api/streamlabs/status' -or $path -eq '/api/streamlabs/connect' -or $path -eq '/api/streamlabs/action') {
+                Send-Json $ctx @{ok=$true;state=@{connected=$false;streaming=$false;recording=$false;currentScene='';scenes=@()}}
+                continue
+              }
+              Send-Json $ctx @{ok=$true}
+              continue
+            }
+            if ($path -eq '/') { $path = '/index.html' }
+            $relative = $path.TrimStart('/').Replace('/',[IO.Path]::DirectorySeparatorChar)
+            $full = [IO.Path]::GetFullPath((Join-Path $root $relative))
+            if (-not $full.StartsWith([IO.Path]::GetFullPath($root),[StringComparison]::OrdinalIgnoreCase) -or -not (Test-Path -LiteralPath $full -PathType Leaf)) {
+              $ctx.Response.StatusCode = 404; $ctx.Response.Close(); continue
+            }
+            $bytes = [IO.File]::ReadAllBytes($full)
+            $ctx.Response.StatusCode = 200
+            $ctx.Response.ContentType = Mime-Type $full
+            $ctx.Response.ContentLength64 = $bytes.Length
+            $ctx.Response.OutputStream.Write($bytes,0,$bytes.Length)
+            $ctx.Response.Close()
+          }
+          try { $listener.Stop() } catch {}
+          '@ | Set-Content -Encoding UTF8 (Join-Path $pack 'server.ps1')
+
+          @'
+          MANU STREAM RADIO - PACK TEST
+
+          Ce pack sert a tester :
+          - le montage Infos / Meteo avec choix du placement des jingles ;
+          - la rotation musicale intelligente qui evite de repartir sur les memes titres dans le meme ordre.
+
+          DEMARRAGE
+          1. Decompresse entierement le ZIP.
+          2. Double-clique sur LANCER-TEST.bat.
+          3. Microsoft Edge s'ouvre sur la regie locale.
+          4. Pour fermer le test, ferme la fenetre PowerShell du serveur.
+
+          IMPORTANT
+          - AUCUNE MISE A JOUR AUTOMATIQUE n'est incluse.
+          - Le pack ne contient ni update.json, ni updater, ni verification distante de version.
+          - Il fonctionne uniquement en local pour les essais.
+          - Les fonctions Streamlabs distantes sont neutralisees dans ce pack de test ; le moteur audio local, la bibliotheque, le bulletin et l'AUTO 24H restent testables.
+          '@ | Set-Content -Encoding UTF8 (Join-Path $pack 'LISEZ-MOI-TEST.txt')
+
+          @'
+          MISE A JOUR AUTOMATIQUE : SUPPRIMEE
+          Ce fichier confirme que ce pack de test ne contacte aucun service de mise a jour et n'inclut aucun manifeste update.json.
+          '@ | Set-Content -Encoding UTF8 (Join-Path $pack 'PAS-DE-MISE-A-JOUR-AUTOMATIQUE.txt')
+
+          $zip = Join-Path $env:RUNNER_TEMP 'Manu-Stream-Radio-TEST-Jingles-Rotation-SANS-MAJ-AUTO.zip'
+          Compress-Archive -Path (Join-Path $pack '*') -DestinationPath $zip -Force
+          Copy-Item $zip "$env:GITHUB_WORKSPACE/Manu-Stream-Radio-TEST-Jingles-Rotation-SANS-MAJ-AUTO.zip"
+
+      - name: Upload test ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: Manu-Stream-Radio-TEST-Jingles-Rotation-SANS-MAJ-AUTO
+          path: Manu-Stream-Radio-TEST-Jingles-Rotation-SANS-MAJ-AUTO.zip
+          if-no-files-found: error
