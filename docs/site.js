@@ -32,7 +32,7 @@
     sub.textContent = 'Direct intégré — aucune plateforme à choisir.';
   };
 
-  const setAudio = (src) => {
+  const setAudio = src => {
     const wrap = document.createElement('div');
     wrap.className = 'audio-stage';
     wrap.innerHTML = `<div class="radio-disc"><span>MSR</span></div><div class="audio-copy"><p class="eyebrow">FLUX RADIO DIRECT</p><h3>${stationName}</h3><p>Appuie sur lecture pour écouter le direct.</p></div>`;
@@ -59,7 +59,7 @@
           <h3>${stationName}</h3>
           <p id="radioSignalText">Connexion au studio…</p>
           <button id="listenLiveBtn" class="listen-button" type="button">▶ ÉCOUTER LE DIRECT</button>
-          <small id="radioLatencyText">Le son démarre après un clic, puis suit le MASTER automatiquement.</small>
+          <small id="radioLatencyText">Tampon anti-coupures activé · quelques secondes de retard sont normales.</small>
         </div>
       </div>`;
     badge.textContent = 'WEB RADIO · TEST';
@@ -67,12 +67,17 @@
     const signalText = $('radioSignalText');
     const latencyText = $('radioLatencyText');
     const listenBtn = $('listenLiveBtn');
+    const BUFFER_SEGMENTS = 3;
     let armed = false;
     let audioCtx = null;
     let nextPlayAt = 0;
     let lastHeartbeat = 0;
     let currentMime = 'audio/webm;codecs=opus';
+    let decoding = false;
+    let primed = false;
     let fallbackPlaying = false;
+    const rawQueue = [];
+    const decodedQueue = [];
     const fallbackQueue = [];
 
     const extractBinary = msg => {
@@ -101,28 +106,65 @@
       });
     };
 
-    const playSegment = async buf => {
-      if (!armed) {
-        signalText.textContent = 'Signal reçu — clique sur ÉCOUTER LE DIRECT.';
-        return;
+    const pumpDecoded = () => {
+      if (!armed || !audioCtx) return;
+      const now = audioCtx.currentTime;
+      if (primed && nextPlayAt && nextPlayAt < now + 0.06) {
+        primed = false;
+        nextPlayAt = 0;
+        latencyText.textContent = `Réseau irrégulier · rechargement du tampon ${decodedQueue.length}/${BUFFER_SEGMENTS}`;
       }
-      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      if (audioCtx.state === 'suspended') await audioCtx.resume();
-      try {
-        const decoded = await audioCtx.decodeAudioData(buf.slice(0));
-        const now = audioCtx.currentTime;
-        if (!nextPlayAt || nextPlayAt < now + 0.08 || nextPlayAt - now > 5) nextPlayAt = now + 0.2;
+      if (!primed) {
+        if (decodedQueue.length < BUFFER_SEGMENTS) {
+          latencyText.textContent = `Préchargement audio ${decodedQueue.length}/${BUFFER_SEGMENTS}…`;
+          return;
+        }
+        primed = true;
+        nextPlayAt = now + 0.28;
+      }
+      while (decodedQueue.length) {
+        const decoded = decodedQueue.shift();
         const src = audioCtx.createBufferSource();
         src.buffer = decoded;
         src.connect(audioCtx.destination);
         src.start(nextPlayAt);
         nextPlayAt += decoded.duration;
-        latencyText.textContent = `Signal audio reçu · tampon ${(Math.max(0, nextPlayAt - now)).toFixed(1)} s`;
-      } catch {
-        fallbackQueue.push(buf.slice(0));
-        if (fallbackQueue.length > 4) fallbackQueue.splice(0, fallbackQueue.length - 3);
-        playFallback();
       }
+      latencyText.textContent = `Direct stabilisé · tampon ${(Math.max(0, nextPlayAt - now)).toFixed(1)} s`;
+    };
+
+    const processRawQueue = async () => {
+      if (decoding || !armed) return;
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      decoding = true;
+      try {
+        while (armed && rawQueue.length) {
+          const buf = rawQueue.shift();
+          try {
+            const decoded = await audioCtx.decodeAudioData(buf.slice(0));
+            decodedQueue.push(decoded);
+            if (decodedQueue.length > 8) decodedQueue.splice(0, decodedQueue.length - 8);
+            pumpDecoded();
+          } catch {
+            fallbackQueue.push(buf.slice(0));
+            if (fallbackQueue.length > 5) fallbackQueue.splice(0, fallbackQueue.length - 4);
+            playFallback();
+          }
+        }
+      } finally {
+        decoding = false;
+        if (armed && rawQueue.length) void processRawQueue();
+      }
+    };
+
+    const enqueueSegment = buf => {
+      if (!armed) {
+        signalText.textContent = 'Signal reçu — clique sur ÉCOUTER LE DIRECT.';
+        return;
+      }
+      rawQueue.push(buf.slice(0));
+      if (rawQueue.length > 10) rawQueue.splice(0, rawQueue.length - 8);
+      void processRawQueue();
     };
 
     listenBtn.onclick = async () => {
@@ -131,13 +173,21 @@
         if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         await audioCtx.resume().catch(() => {});
         nextPlayAt = 0;
+        primed = false;
+        rawQueue.length = 0;
+        decodedQueue.length = 0;
+        fallbackQueue.length = 0;
         listenBtn.textContent = '■ COUPER LE SON';
         listenBtn.classList.add('active');
-        signalText.textContent = lastHeartbeat ? 'Écoute activée — attente du prochain segment…' : 'Écoute activée — attente du studio…';
+        signalText.textContent = lastHeartbeat ? 'Écoute activée — création du tampon anti-coupures…' : 'Écoute activée — attente du studio…';
+        latencyText.textContent = `Préchargement audio 0/${BUFFER_SEGMENTS}…`;
       } else {
         listenBtn.textContent = '▶ ÉCOUTER LE DIRECT';
         listenBtn.classList.remove('active');
         nextPlayAt = 0;
+        primed = false;
+        rawQueue.length = 0;
+        decodedQueue.length = 0;
         fallbackQueue.length = 0;
         if (audioCtx) await audioCtx.suspend().catch(() => {});
       }
@@ -170,7 +220,7 @@
           const bin = extractBinary(msg);
           if (bin?.byteLength) {
             setLive(true);
-            void playSegment(bin);
+            enqueueSegment(bin);
           }
         })
         .subscribe((status, err) => {
@@ -183,6 +233,10 @@
           setLive(false, 'Le studio ne transmet pas actuellement.');
           signalText.textContent = 'Aucun signal récent — attente du studio.';
           lastHeartbeat = 0;
+          primed = false;
+          nextPlayAt = 0;
+          rawQueue.length = 0;
+          decodedQueue.length = 0;
         }
       }, 3000);
     } catch (err) {
@@ -196,16 +250,8 @@
   } else if (cfg.audioStreamUrl) {
     setAudio(cfg.audioStreamUrl);
   } else if (cfg.twitchChannel) {
-    setIframe(
-      `https://player.twitch.tv/?channel=${encodeURIComponent(cfg.twitchChannel)}&parent=${encodeURIComponent(host)}&autoplay=false`,
-      'DIRECT INTÉGRÉ',
-      'autoplay; fullscreen'
-    );
+    setIframe(`https://player.twitch.tv/?channel=${encodeURIComponent(cfg.twitchChannel)}&parent=${encodeURIComponent(host)}&autoplay=false`, 'DIRECT INTÉGRÉ', 'autoplay; fullscreen');
   } else if (cfg.youtubeChannelId) {
-    setIframe(
-      `https://www.youtube.com/embed/live_stream?channel=${encodeURIComponent(cfg.youtubeChannelId)}&autoplay=0`,
-      'DIRECT INTÉGRÉ',
-      'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share'
-    );
+    setIframe(`https://www.youtube.com/embed/live_stream?channel=${encodeURIComponent(cfg.youtubeChannelId)}&autoplay=0`, 'DIRECT INTÉGRÉ', 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share');
   }
 })();
