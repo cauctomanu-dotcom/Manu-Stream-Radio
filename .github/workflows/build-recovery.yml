@@ -1,0 +1,104 @@
+name: Build Manu Stream Radio Recovery
+
+on:
+  push:
+    branches:
+      - recovery/stable-launcher-20260915
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23.x'
+
+      - name: Validate source JavaScript
+        run: |
+          set -euxo pipefail
+          test -s app/web/index.html
+          test -s app/web/style.css
+          test -s app/web/app.js
+          node --check app/web/app.js
+          node --check recovery/overlay.js
+          grep -q 'app.js' app/web/index.html
+
+      - name: Prepare package
+        run: |
+          set -euxo pipefail
+          rm -rf dist
+          mkdir -p dist/Manu-Stream-Radio-RECOVERY-STABLE/web
+          cp app/web/index.html dist/Manu-Stream-Radio-RECOVERY-STABLE/web/index.html
+          cp app/web/style.css dist/Manu-Stream-Radio-RECOVERY-STABLE/web/style.css
+          cp app/web/app.js dist/Manu-Stream-Radio-RECOVERY-STABLE/web/app.js
+          cp app/web/overlay.html dist/Manu-Stream-Radio-RECOVERY-STABLE/web/overlay.html
+          cp recovery/overlay.js dist/Manu-Stream-Radio-RECOVERY-STABLE/web/overlay.js
+          cp recovery/README_RECOVERY.txt dist/Manu-Stream-Radio-RECOVERY-STABLE/LISEZ-MOI.txt
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('dist/Manu-Stream-Radio-RECOVERY-STABLE/web/index.html')
+          s = p.read_text(encoding='utf-8')
+          if 'src="/app.js' not in s and "src='/app.js" not in s:
+              s = s.replace('</body>', '<script src="/app.js?v=recovery-stable"></script>\n</body>')
+          s = s.replace('<title>Manu Stream Radio V1.7</title>', '<title>Manu Stream Radio — Recovery Stable</title>')
+          p.write_text(s, encoding='utf-8')
+          assert '/app.js' in s, 'app.js must be loaded by index.html'
+          PY
+
+      - name: Build Linux smoke-test launcher
+        run: |
+          set -euxo pipefail
+          GOOS=linux GOARCH=amd64 go build -o dist/Manu-Stream-Radio-RECOVERY-STABLE/msr-smoke ./recovery/launcher.go
+
+      - name: Smoke test local server and app.js
+        run: |
+          set -euxo pipefail
+          cd dist/Manu-Stream-Radio-RECOVERY-STABLE
+          ./msr-smoke >/tmp/msr-smoke.out 2>&1 &
+          PID=$!
+          cleanup() { kill "$PID" 2>/dev/null || true; }
+          trap cleanup EXIT
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:17340/health | grep -q 'MSR-RECOVERY-2026-09-15'; then
+              break
+            fi
+            sleep 0.2
+          done
+          curl -fsS http://127.0.0.1:17340/health | grep -q 'MSR-RECOVERY-2026-09-15'
+          curl -fsS http://127.0.0.1:17340/ | grep -q 'Manu Stream Radio'
+          curl -fsS http://127.0.0.1:17340/app.js | grep -q 'manu-stream-radio-portable'
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:17340/app.js)" = "200"
+          curl -fsS http://127.0.0.1:17340/api/state | python3 -m json.tool >/dev/null
+          rm -f msr-smoke
+
+      - name: Build Windows x64 launcher
+        run: |
+          set -euxo pipefail
+          GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags='-s -w -H=windowsgui' -o dist/Manu-Stream-Radio-RECOVERY-STABLE/Manu-Stream-Radio-RECOVERY-STABLE.exe ./recovery/launcher.go
+          test -s dist/Manu-Stream-Radio-RECOVERY-STABLE/Manu-Stream-Radio-RECOVERY-STABLE.exe
+
+      - name: Create ready-to-unzip archive
+        run: |
+          set -euxo pipefail
+          cd dist
+          zip -r -9 Manu-Stream-Radio-RECOVERY-STABLE-2026-09-15.zip Manu-Stream-Radio-RECOVERY-STABLE
+          unzip -l Manu-Stream-Radio-RECOVERY-STABLE-2026-09-15.zip | tee /tmp/archive-list.txt
+          grep -q 'Manu-Stream-Radio-RECOVERY-STABLE.exe' /tmp/archive-list.txt
+          grep -q 'web/app.js' /tmp/archive-list.txt
+          grep -q 'web/index.html' /tmp/archive-list.txt
+
+      - name: Upload archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: Manu-Stream-Radio-RECOVERY-STABLE-2026-09-15
+          path: dist/Manu-Stream-Radio-RECOVERY-STABLE-2026-09-15.zip
+          if-no-files-found: error
+          retention-days: 7
