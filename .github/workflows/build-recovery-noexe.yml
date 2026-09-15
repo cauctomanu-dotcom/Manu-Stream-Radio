@@ -1,0 +1,79 @@
+name: Build MSR Recovery NO-EXE
+
+on:
+  push:
+    branches:
+      - recovery/no-exe-20260915
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate JavaScript
+        run: |
+          set -euxo pipefail
+          test -s app/web/index.html
+          test -s app/web/style.css
+          test -s app/web/app.js
+          grep -q '/app.js' app/web/index.html
+          node --check app/web/app.js
+
+      - name: Validate PowerShell syntax
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile("recovery-noexe/start-msr.ps1", [ref]$tokens, [ref]$errors) | Out-Null
+          if ($errors.Count -gt 0) {
+            $errors | ForEach-Object { Write-Error $_.Message }
+            exit 1
+          }
+
+      - name: Prepare package
+        run: |
+          set -euxo pipefail
+          rm -rf dist
+          mkdir -p dist/Manu-Stream-Radio-RECOVERY-NO-EXE/web
+          cp app/web/index.html dist/Manu-Stream-Radio-RECOVERY-NO-EXE/web/index.html
+          cp app/web/style.css dist/Manu-Stream-Radio-RECOVERY-NO-EXE/web/style.css
+          cp app/web/app.js dist/Manu-Stream-Radio-RECOVERY-NO-EXE/web/app.js
+          cp app/web/overlay.html dist/Manu-Stream-Radio-RECOVERY-NO-EXE/web/overlay.html
+          cp recovery-noexe/start-msr.ps1 dist/Manu-Stream-Radio-RECOVERY-NO-EXE/start-msr.ps1
+          cp recovery-noexe/LANCER-MSR.cmd dist/Manu-Stream-Radio-RECOVERY-NO-EXE/LANCER-MSR.cmd
+          cp recovery-noexe/LANCER-MSR-DIAGNOSTIC.cmd dist/Manu-Stream-Radio-RECOVERY-NO-EXE/LANCER-MSR-DIAGNOSTIC.cmd
+          cp recovery-noexe/LISEZ-MOI.txt dist/Manu-Stream-Radio-RECOVERY-NO-EXE/LISEZ-MOI.txt
+
+      - name: Verify package structure
+        run: |
+          set -euxo pipefail
+          test -s dist/Manu-Stream-Radio-RECOVERY-NO-EXE/LANCER-MSR.cmd
+          test -s dist/Manu-Stream-Radio-RECOVERY-NO-EXE/start-msr.ps1
+          test -s dist/Manu-Stream-Radio-RECOVERY-NO-EXE/web/app.js
+          grep -q 'manu-stream-radio-portable' dist/Manu-Stream-Radio-RECOVERY-NO-EXE/web/app.js
+          grep -q '/app.js' dist/Manu-Stream-Radio-RECOVERY-NO-EXE/web/index.html
+
+      - name: Zip package
+        run: |
+          set -euxo pipefail
+          cd dist
+          zip -r -9 Manu-Stream-Radio-RECOVERY-NO-EXE-2026-09-15.zip Manu-Stream-Radio-RECOVERY-NO-EXE
+          unzip -l Manu-Stream-Radio-RECOVERY-NO-EXE-2026-09-15.zip | tee /tmp/list.txt
+          grep -q 'LANCER-MSR.cmd' /tmp/list.txt
+          grep -q 'start-msr.ps1' /tmp/list.txt
+          grep -q 'web/app.js' /tmp/list.txt
+          if grep -q '\.exe' /tmp/list.txt; then echo 'Unexpected EXE found'; exit 1; fi
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Manu-Stream-Radio-RECOVERY-NO-EXE-2026-09-15
+          path: dist/Manu-Stream-Radio-RECOVERY-NO-EXE-2026-09-15.zip
+          if-no-files-found: error
+          retention-days: 7
