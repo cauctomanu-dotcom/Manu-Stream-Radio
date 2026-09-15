@@ -1,0 +1,29 @@
+MANU STREAM RADIO — RECUPERATION SANS EXE
+15 septembre 2026
+
+POURQUOI CETTE VERSION
+La précédente archive lançait un EXE non signé. Sur certains PC, Windows peut refuser l'accès au fichier avec le message « Windows ne parvient pas à accéder au périphérique, au chemin d'accès ou au fichier spécifié ».
+
+Cette archive contourne complètement ce problème :
+- aucun EXE tiers à lancer ;
+- aucun programme à installer ;
+- le serveur local est lancé par PowerShell, déjà présent dans Windows ;
+- le fichier app.js est bien inclus et servi par la régie.
+
+UTILISATION
+1. Ferme les anciennes fenêtres Manu Stream Radio.
+2. Extrais TOUT le ZIP dans un dossier normal, par exemple sur le Bureau.
+3. Double-clique sur LANCER-MSR.cmd.
+4. Une fenêtre Microsoft Edge doit s'ouvrir automatiquement sur la régie.
+
+IMPORTANT
+Ne lance pas les fichiers directement depuis l'intérieur du ZIP. Il faut extraire le dossier complet.
+
+SI RIEN NE S'OUVRE
+Double-clique sur LANCER-MSR-DIAGNOSTIC.cmd. Cette version laisse la fenêtre de diagnostic visible et écrit aussi un fichier msr-noexe.log dans le dossier.
+
+DONNEES LOCALES
+Le lanceur essaie d'utiliser 127.0.0.1:17340 en priorité pour conserver le même origin navigateur et maximiser la récupération des données locales déjà présentes dans Edge.
+
+STREAMLABS
+Cette version de récupération remet d'abord la régie locale en route. Le Remote Control Streamlabs n'est pas activé dans ce lanceur de secours. La capture audio/fenêtre dans Streamlabs reste possible séparément.
