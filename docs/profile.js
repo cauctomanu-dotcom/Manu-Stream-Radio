@@ -13,10 +13,15 @@
     return (words.slice(0, 3).map(w => w[0]).join('') || 'SR').toUpperCase();
   };
 
+  const setText = (el, value) => {
+    const next = String(value ?? '');
+    if (el && el.textContent !== next) el.textContent = next;
+  };
+
   const ensureDiscLogo = (disc, logo, name) => {
     if (!disc) return;
     let img = disc.querySelector('img.station-disc-logo');
-    let span = disc.querySelector('span');
+    const span = disc.querySelector('span');
     if (logo) {
       if (!img) {
         img = document.createElement('img');
@@ -24,14 +29,17 @@
         img.alt = `Logo de ${name}`;
         disc.appendChild(img);
       }
-      img.src = logo;
-      img.hidden = false;
-      if (span) span.hidden = true;
-      disc.classList.add('has-station-logo');
+      if (img.src !== logo) img.src = logo;
+      if (img.hidden) img.hidden = false;
+      if (span && !span.hidden) span.hidden = true;
+      if (!disc.classList.contains('has-station-logo')) disc.classList.add('has-station-logo');
     } else {
-      if (img) img.hidden = true;
-      if (span) { span.hidden = false; span.textContent = initials(name); }
-      disc.classList.remove('has-station-logo');
+      if (img && !img.hidden) img.hidden = true;
+      if (span) {
+        if (span.hidden) span.hidden = false;
+        setText(span, initials(name));
+      }
+      if (disc.classList.contains('has-station-logo')) disc.classList.remove('has-station-logo');
     }
   };
 
@@ -42,34 +50,35 @@
     const slogan = String(currentProfile.slogan || cfg.tagline || '').trim();
     const logo = String(currentProfile.logo_data_url || '').trim();
 
-    document.title = `${name} — Écouter`;
-    if ($('stationName')) $('stationName').textContent = name;
-    if ($('tagline')) $('tagline').textContent = slogan;
-    if ($('stationFooterName')) $('stationFooterName').textContent = name;
+    const wantedTitle = `${name} — Écouter`;
+    if (document.title !== wantedTitle) document.title = wantedTitle;
+    setText($('stationName'), name);
+    setText($('tagline'), slogan);
+    setText($('stationFooterName'), name);
 
     const box = $('stationLogoBox');
     const img = $('stationLogo');
     const letters = $('stationInitials');
     if (box && img && letters) {
       if (logo) {
-        img.src = logo;
+        if (img.src !== logo) img.src = logo;
         img.alt = `Logo de ${name}`;
-        img.hidden = false;
-        letters.hidden = true;
-        box.classList.add('has-logo');
+        if (img.hidden) img.hidden = false;
+        if (!letters.hidden) letters.hidden = true;
+        if (!box.classList.contains('has-logo')) box.classList.add('has-logo');
       } else {
-        img.removeAttribute('src');
-        img.hidden = true;
-        letters.hidden = false;
-        letters.textContent = initials(name);
-        box.classList.remove('has-logo');
+        if (img.hasAttribute('src')) img.removeAttribute('src');
+        if (!img.hidden) img.hidden = true;
+        if (letters.hidden) letters.hidden = false;
+        setText(letters, initials(name));
+        if (box.classList.contains('has-logo')) box.classList.remove('has-logo');
       }
     }
 
-    document.querySelectorAll('.audio-copy h3').forEach(el => { el.textContent = name; });
+    document.querySelectorAll('.audio-copy h3').forEach(el => setText(el, name));
     document.querySelectorAll('.radio-disc').forEach(el => ensureDiscLogo(el, logo, name));
     document.querySelectorAll('.placeholder b').forEach(el => {
-      if (/Connexion à/i.test(el.textContent || '')) el.textContent = `Connexion à ${name}…`;
+      if (/Connexion à/i.test(el.textContent || '')) setText(el, `Connexion à ${name}…`);
     });
   };
 
@@ -96,7 +105,17 @@
 
   applyProfile(currentProfile);
   const player = $('mainPlayer');
-  if (player) new MutationObserver(() => applyProfile(currentProfile)).observe(player, { childList: true, subtree: true });
+  if (player) {
+    let scheduled = false;
+    new MutationObserver(() => {
+      if (scheduled) return;
+      scheduled = true;
+      requestAnimationFrame(() => {
+        scheduled = false;
+        applyProfile(currentProfile);
+      });
+    }).observe(player, { childList: true, subtree: true });
+  }
   void refresh();
   setInterval(() => void refresh(), 8000);
 })();
