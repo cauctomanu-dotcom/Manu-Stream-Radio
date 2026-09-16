@@ -12,7 +12,10 @@
 <body>
   <main class="shell">
     <header class="hero">
-      <div class="brandmark">MSR</div>
+      <div class="brandmark" id="stationLogoBox">
+        <span id="stationInitials">MSR</span>
+        <img id="stationLogo" alt="" hidden>
+      </div>
       <div>
         <p class="eyebrow">WEBRADIO / LIVE</p>
         <h1 id="stationName">Manu Stream Radio</h1>
@@ -56,9 +59,10 @@
       <article><span>03</span><h3>Mode test</h3><p>Le pont audio actuel utilise Supabase Realtime pour nos essais. Il sera ensuite remplacé par un relais radio permanent.</p></article>
     </section>
 
-    <footer><span id="contactText">Manu Stream</span><span>•</span><span>Manu Stream Radio</span></footer>
+    <footer><span id="contactText">Manu Stream</span><span>•</span><span id="stationFooterName">Manu Stream Radio</span></footer>
   </main>
   <script src="config.js"></script>
   <script src="site.js"></script>
+  <script src="profile.js?v=1"></script>
 </body>
 </html>
