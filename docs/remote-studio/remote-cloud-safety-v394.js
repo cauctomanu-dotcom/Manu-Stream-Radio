@@ -33,3 +33,4 @@ function installCloudFirst394(){
 }
 let tries394=0;const timer394=setInterval(()=>{tries394++;if(installCloudFirst394()||tries394>40)clearInterval(timer394)},250);
 window.addEventListener('msr-remote-paired',()=>setTimeout(installCloudFirst394,100));
+import('./studio-v7.js?v=1').catch(e=>console.warn('Remote V3.9.17 controls',e));
