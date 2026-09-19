@@ -20,3 +20,4 @@ async function applyStationLogo(){
 window.addEventListener('msr-remote-paired',()=>setTimeout(applyStationLogo,150));
 setInterval(()=>{if(R()?.getStation?.())void applyStationLogo()},5000);
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(applyStationLogo,500),{once:true});else setTimeout(applyStationLogo,500);
+void import('./remote-mic-device-v1.js?v=1').catch(e=>console.warn('Sélecteur micro Remote',e));
