@@ -23,3 +23,10 @@ La V3.9.25 reste la référence fonctionnelle pour l’interface et les fonction
 ## GitHub Pages
 
 Le workflow Pages ne publie que le dossier `docs/`. Il ne doit jamais publier ni remplacer le moteur local du Studio Windows.
+
+## Protection de la base Supabase — 29 octobre 2026
+
+- Les anciennes copies audio cloud en `radio_media` / `__cloud_chunk__` ont été retirées ; la bibliothèque audio de référence est locale au Studio Windows V4.
+- Le Remote Studio n'envoie désormais plus d'enregistrements audio bruts dans PostgreSQL : le bouton d'export prépare un fichier WAV téléchargeable sur l'appareil. L'utilisateur peut ensuite transférer ce fichier au dossier local Media Manu Stream sur le PC ; les jingles et fonds sont ajoutés dans le Studio Windows.
+- Le contrôle à distance, les métadonnées et la signalisation restent temporairement dans Supabase. Un envoi audio direct automatisé à Ubuntu nécessitera une API HTTPS d'upload authentifiée et un importeur côté Studio/serveur, qui ne sont pas encore déployés.
+- Ne pas réactiver les anciens modules Cloud-first, qui remplissent le quota de la base et empêchent l'accès à MonSAEIV.
