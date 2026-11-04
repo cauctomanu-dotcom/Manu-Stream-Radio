@@ -277,7 +277,8 @@ class Station:
     def _choose(self, db, kind):
         rows = [r["path"] for r in db.execute(
             "SELECT path FROM media WHERE kind=? ORDER BY path", (kind,)).fetchall()
-            if safe_media_path(self.root, r["path"]).is_file()]
+            if (kind != "jingles" or r["path"].startswith("Jingles/Général/"))
+            and safe_media_path(self.root, r["path"]).is_file()]
         if not rows:
             return None
         last = [r["path"] for r in db.execute(
