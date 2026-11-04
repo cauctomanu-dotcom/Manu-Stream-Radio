@@ -17,18 +17,19 @@ end
 
 managed = request.dynamic(
   id="msr_v9_scheduled",
-  prefetch=0,
+  prefetch=1,
   retry_delay=0.5,
   choose_next
 )
 
-# A separate fallback protects the stream if the scheduler or database fails.
-backup = playlist("/srv/msr-v9-media/Musique")
+# Never bypass the explicit rotation allowlist when scheduling fails.
+# Short silent tracks allow automatic recovery as soon as approved music is available.
+backup = blank(duration=2.0)
 automatic = fallback(track_sensitive=true, [managed, backup])
 
 # Live takes priority only when a DJ explicitly connects to the studio input.
 # Losing the studio or turning off the PC returns automatically to the server.
-settings.harbor.bind_addrs := ["0.0.0.0"]
+settings.harbor.bind_addrs := ["127.0.0.1"]
 studio = input.harbor(
   "studio",
   port=18005,
