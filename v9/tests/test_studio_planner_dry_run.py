@@ -55,12 +55,20 @@ class DryRunTest(unittest.TestCase):
             "expected_revision": 0, "plannerOn": True,
             "plannerRules": [self.rule(True)]})
         previous_flag = os.environ.get("MSR_ENABLE_STUDIO_PLANNER")
+        # Reproduce the real-world issue: the scheduled introduction fires
+        # after two songs, so the previous jingle counter is already at 2.
+        with self.station.db() as db:
+            self.station._put(db, "songs_since_jingle", "2")
         before = {t: self.count(t) for t in ("runs", "history", "state")}
         start = datetime(2026, 11, 4, 19, 30, tzinfo=ZoneInfo("Europe/Paris"))
-        results = dryrun.simulate(self.root, self.db, start, steps=4, spacing=4)
-        self.assertEqual([r["category"] for r in results[:2]],
-                         ["jingles", "scheduled"])
+        results = dryrun.simulate(self.root, self.db, start, steps=7, spacing=4)
+        self.assertEqual(
+            [r["category"] for r in results],
+            ["jingles", "scheduled", "music", "music", "jingles", "music", "music"]
+        )
+        self.assertEqual(results[0]["songs_since_jingle"], 0)
         self.assertEqual(results[1]["title"], "ACTU GAMING")
+        self.assertEqual(results[4]["songs_since_jingle"], 0)
         self.assertEqual(before, {t: self.count(t) for t in ("runs", "history", "state")})
         self.assertEqual(os.environ.get("MSR_ENABLE_STUDIO_PLANNER"), previous_flag)
 
