@@ -10,6 +10,10 @@ La V8.3 Windows et la source Icecast /manustream restent inchangées.
   chroniques, émissions, publicités). SQLite conserve les métadonnées, pas le son.
 - Python choisit le contenu à lire uniquement à chaque **fin de piste**.
   Aucune chronique n'interrompt une chanson en cours. Le jingle passe avant.
+- Seul le dossier **Jingles/Général** alimente les jingles automatiques
+  (entre deux titres et avant les programmes). Les jingles Noël, Halloween
+  et ceux des émissions restent disponibles pour une programmation explicite.
+  Si le dossier Général est vide, aucun jingle saisonnier n'est choisi en secours.
 - Une prise de direct volontaire est prioritaire ; à sa déconnexion, Liquidsoap
   revient automatiquement à l'automatisation.
 - La page auditeurs pourra afficher les programmes via une API publique.
@@ -58,8 +62,9 @@ Linux local (/var/lib/msr-v9), jamais sur un partage SMB.
 ## Installation et validation (après inspection de la VM)
 
 1. Sauvegarder la configuration existante et vérifier espace libre / montages.
-2. Vérifier la version Ubuntu, Python (3.12+) et installer Liquidsoap 2.3.x
-   compatible et les codecs nécessaires. Ne pas installer à l'aveugle.
+2. Vérifier la version Ubuntu, Python (3.12+) et Liquidsoap.
+   Le script actuel passe la vérification syntaxique sur Liquidsoap 2.2.4
+   installé sur la VM. Les transitions réelles restent à qualifier.
 3. Créer l'utilisateur système msr, /var/lib/msr-v9, les dossiers médias
    sur le 2 To et déposer le repo sous /opt/manustream-v9.
 4. Copier station.env.example vers /etc/msr-v9/station.env, configurer de
