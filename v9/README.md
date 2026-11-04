@@ -134,6 +134,25 @@ Pour valider le code dans le worktree, **sans installer ni activer** :
     python3 -m unittest discover -s v9/tests -v
     python3 -m py_compile v9/engine.py
 
+### Simulation sécurisée d'une soirée V9
+
+Le simulateur `v9/tools/studio_planner_dry_run.py` utilise une **copie SQLite
+temporaire** construite par l'API de sauvegarde SQLite. Il lit les vrais chemins
+audio depuis le partage, mais n'envoie aucun son à Liquidsoap ou Icecast.
+Il met `MSR_ENABLE_STUDIO_PLANNER=1` uniquement dans son processus Python,
+sans reconfigurer ni redémarrer les services existants.
+
+Exemple sur Ubuntu pour le mercredi 4 novembre 2026 à 19h30 (heure de Paris) :
+
+    sudo python3 v9/tools/studio_planner_dry_run.py --at 2026-11-04T19:30:00+01:00 --steps 9
+
+Résultats attendus si les fichiers du Studio ont été indexés et les règles
+n'ont pas changé : jingle d'introduction, chronique ACTU GAMING, puis rotation
+musicale/jingles. L'intervalle entre sélections est **simulé** (4 min par défaut) :
+ce n'est pas une garantie d'heure réelle d'antenne. Une diffusion automatisée
+réelle exigera une validation du préchargement Liquidsoap et des vraies
+durées, ainsi que des options de rotation `repeatMinutes` et jingles `smart`.
+
 Le flux public `/manustream` ne doit pas être changé pendant ces essais.
 
 ## API
