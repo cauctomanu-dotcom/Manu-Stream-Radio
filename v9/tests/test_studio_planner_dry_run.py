@@ -70,6 +70,10 @@ class DryRunTest(unittest.TestCase):
         self.assertEqual(results[1]["title"], "ACTU GAMING")
         self.assertEqual(results[4]["songs_since_jingle"], 0)
         self.assertEqual(before, {t: self.count(t) for t in ("runs", "history", "state")})
+        with self.station.db() as db:
+            # Crucial: only the scratch DB was modified. Live is still at 2.
+            self.assertEqual(self.station._get(db, "songs_since_jingle"), "2")
+            self.assertEqual(db.execute("SELECT COUNT(*) FROM runs").fetchone()[0], 0)
         self.assertEqual(os.environ.get("MSR_ENABLE_STUDIO_PLANNER"), previous_flag)
 
     def test_disabled_chronicle_is_not_simulated(self):
