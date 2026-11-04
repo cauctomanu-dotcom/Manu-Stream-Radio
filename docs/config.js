@@ -3,6 +3,8 @@ window.MSR_PUBLIC_CONFIG = {
   stationName: "Manu Stream Radio",
   tagline: "La radio de Manu — le MASTER du studio en direct.",
   audioStreamUrl: "",
+  // Set only after the HTTPS stream and API have passed acceptance tests.
+  programApiUrl: "",
   realtimeEnabled: true,
   supabaseUrl: "https://xpmrnwipnoekiycghwli.supabase.co",
   supabasePublishableKey: "sb_publishable_CK-3LTMSP2aIdbFSFSQk1A_f5DRBlj4",
