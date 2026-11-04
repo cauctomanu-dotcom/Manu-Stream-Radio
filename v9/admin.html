@@ -44,16 +44,21 @@ code{font-size:.88em;color:#bfe5df;overflow-wrap:anywhere}
 <div class="cards">
 <section class="panel">
 <h2>Ajouter un média sur le disque de 2 To</h2>
-<label for="category">Catégorie</label>
-<select id="category">
-<option value="music">Musique</option><option value="jingles">Jingles</option>
-<option value="chronicles" selected>Chroniques</option><option value="ads">Publicités</option>
-<option value="shows">Émissions</option>
-</select>
+<label for="destination">Dossier de destination</label>
+<select id="destination"></select>
 <label for="file">Fichier audio MP3, WAV, M4A, FLAC, OGG ou AAC</label>
 <input type="file" id="file" accept=".mp3,.wav,.m4a,.flac,.ogg,.aac">
 <button id="upload">Importer sur le serveur</button>
 <p class="muted" id="uploadInfo">La copie est transférée directement vers la bibliothèque Linux.</p>
+</section>
+<section class="panel">
+<h2>Nouveau sous-dossier</h2>
+<p class="muted">Disponible pour le Studio et la Remote après leur raccordement à la V9.</p>
+<label for="folderParent">Créer dans</label>
+<select id="folderParent"></select>
+<label for="newFolder">Nom du nouveau dossier</label>
+<input id="newFolder" placeholder="Ex. Saint-Valentin" maxlength="120">
+<button id="createFolder">＋ Créer le dossier</button>
 </section>
 <section class="panel">
 <h2>Programmer une diffusion</h2>
@@ -110,6 +115,17 @@ code{font-size:.88em;color:#bfe5df;overflow-wrap:anywhere}
     for(const item of data.status.next||[]) {
       const p=document.createElement("p");p.textContent=fmt(item.starts_at)+" — "+item.title;upcoming.append(p);
     }
+    const folders=data.folders||[];
+    for(const id of ['destination','folderParent']) {
+      const select=$(id), previous=select.value;
+      select.replaceChildren();
+      for(const folder of folders) {
+        const option=document.createElement('option');
+        option.value=folder; option.textContent=folder;select.append(option);
+      }
+      if([...select.options].some(o=>o.value===previous))select.value=previous;
+      else if([...select.options].some(o=>o.value==='Chroniques'))select.value='Chroniques';
+    }
     const media=$('media');const chosen=media.value;media.replaceChildren();
     for(const item of data.media) {
       const opt=document.createElement("option"); opt.value=item.path;
@@ -144,12 +160,31 @@ code{font-size:.88em;color:#bfe5df;overflow-wrap:anywhere}
     if(![".mp3",".wav",".m4a",".flac",".ogg",".aac"].includes(ext))return notice("Format non accepté.",true);
     $('upload').disabled=true;$('uploadInfo').textContent="Envoi en cours : "+file.name+"…";
     try {
-      const path="/api/admin/media/"+$('category').value+"/"+encodeURIComponent(file.name);
+      const folder=$('destination').value;
+      if(!folder)throw new Error("Choisis un dossier");
+      const path="/api/admin/media/"+folder.split('/').map(encodeURIComponent).join('/')+"/"+encodeURIComponent(file.name);
       await call(path,{method:"PUT",headers:{"Content-Type":"application/octet-stream"},body:file});
       $('file').value="";await refresh();notice("Média importé sur le serveur.");
       $('uploadInfo').textContent="Transfert terminé.";
     } catch(e){notice("Importation impossible : "+e.message,true);$('uploadInfo').textContent="Échec de l'envoi.";}
     finally{$('upload').disabled=false;}
+  };
+  $('createFolder').onclick=async()=>{
+    const parent=$('folderParent').value,name=$('newFolder').value;
+    if(!parent||!name.trim())return notice("Choisis le dossier parent et un nom.",true);
+    $('createFolder').disabled=true;
+    try{
+      const result=await call("/api/admin/folders",{
+        method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({parent,name})
+      });
+      await refresh();
+      $('destination').value=result.path;
+      $('folderParent').value=result.path;
+      $('newFolder').value="";
+      notice("Dossier créé : "+result.path);
+    }catch(e){notice(e.message,true);}
+    finally{$('createFolder').disabled=false;}
   };
   $('create').onclick=async()=>{
     const payload={title:$('title').value.trim(),media_path:$('media').value,
