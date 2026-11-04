@@ -54,6 +54,7 @@ class DryRunTest(unittest.TestCase):
         self.station.update_studio_planner({
             "expected_revision": 0, "plannerOn": True,
             "plannerRules": [self.rule(True)]})
+        previous_flag = os.environ.get("MSR_ENABLE_STUDIO_PLANNER")
         before = {t: self.count(t) for t in ("runs", "history", "state")}
         start = datetime(2026, 11, 4, 19, 30, tzinfo=ZoneInfo("Europe/Paris"))
         results = dryrun.simulate(self.root, self.db, start, steps=4, spacing=4)
@@ -61,7 +62,7 @@ class DryRunTest(unittest.TestCase):
                          ["jingles", "scheduled"])
         self.assertEqual(results[1]["title"], "ACTU GAMING")
         self.assertEqual(before, {t: self.count(t) for t in ("runs", "history", "state")})
-        self.assertNotIn("MSR_ENABLE_STUDIO_PLANNER", os.environ)
+        self.assertEqual(os.environ.get("MSR_ENABLE_STUDIO_PLANNER"), previous_flag)
 
     def test_disabled_chronicle_is_not_simulated(self):
         self.station.update_studio_planner({
