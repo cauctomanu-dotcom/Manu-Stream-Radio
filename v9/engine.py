@@ -337,9 +337,12 @@ class API(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(raw)))
         self.send_header("Cache-Control", "no-store")
         self.send_header("X-Content-Type-Options", "nosniff")
-        allowed = os.environ.get("MSR_PUBLIC_ORIGIN", "https://cauctomanu-dotcom.github.io")
-        if self.headers.get("Origin") == allowed:
-            self.send_header("Access-Control-Allow-Origin", allowed)
+        allowed = {item.strip() for item in os.environ.get(
+            "MSR_PUBLIC_ORIGIN",
+            "https://cauctomanu-dotcom.github.io,https://manustreamradio.duckdns.org"
+        ).split(",") if item.strip()}
+        if self.headers.get("Origin") in allowed:
+            self.send_header("Access-Control-Allow-Origin", self.headers.get("Origin"))
             self.send_header("Vary", "Origin")
         self.end_headers()
         self.wfile.write(raw)
@@ -363,10 +366,13 @@ class API(BaseHTTPRequestHandler):
         return data
 
     def do_OPTIONS(self):
-        allowed = os.environ.get("MSR_PUBLIC_ORIGIN", "https://cauctomanu-dotcom.github.io")
+        allowed = {item.strip() for item in os.environ.get(
+            "MSR_PUBLIC_ORIGIN",
+            "https://cauctomanu-dotcom.github.io,https://manustreamradio.duckdns.org"
+        ).split(",") if item.strip()}
         self.send_response(204)
-        if self.headers.get("Origin") == allowed:
-            self.send_header("Access-Control-Allow-Origin", allowed)
+        if self.headers.get("Origin") in allowed:
+            self.send_header("Access-Control-Allow-Origin", self.headers.get("Origin"))
             self.send_header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
             self.send_header("Access-Control-Allow-Headers", "Authorization, Content-Type")
             self.send_header("Vary", "Origin")
@@ -472,8 +478,14 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("command", choices=["serve", "scan", "next", "status"])
     args = parser.parse_args()
-    station = Station(Path(os.environ.get("MSR_MEDIA_ROOT", "/srv/msr-v9-media")),
-                      Path(os.environ.get("MSR_DB_PATH", "/var/lib/msr-v9/station.sqlite3")))
+    root = Path(os.environ.get("MSR_MEDIA_ROOT", "/srv/msr-v9-media"))
+    # Fail closed: do not fill the VM's small system disk if Freebox SMB vanishes.
+    if os.environ.get("MSR_REQUIRE_MEDIA_MOUNT", "1") == "1":
+        required_mount = Path(os.environ.get("MSR_MOUNT_CHECK_PATH", str(root)))
+        if not os.path.ismount(required_mount):
+            raise SystemExit("Partage média 2 To non monté : " + str(required_mount))
+    station = Station(root, Path(os.environ.get(
+        "MSR_DB_PATH", "/var/lib/msr-v9/station.sqlite3")))
     if args.command == "scan":
         print(json.dumps(station.scan(), ensure_ascii=False))
     elif args.command == "next":
