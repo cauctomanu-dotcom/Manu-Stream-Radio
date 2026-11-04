@@ -110,7 +110,8 @@ class Station:
             db.executescript("""
                 CREATE TABLE IF NOT EXISTS media (
                     path TEXT PRIMARY KEY, kind TEXT NOT NULL,
-                    size INTEGER NOT NULL, modified_ns INTEGER NOT NULL
+                    size INTEGER NOT NULL, modified_ns INTEGER NOT NULL,
+                    rotation_enabled INTEGER NOT NULL DEFAULT 0
                 );
                 CREATE TABLE IF NOT EXISTS rules (
                     id TEXT PRIMARY KEY, title TEXT NOT NULL, media_path TEXT NOT NULL,
@@ -130,6 +131,10 @@ class Station:
                     category TEXT NOT NULL, selected_utc TEXT NOT NULL
                 );
             """)
+            # Existing V9 databases are upgraded without losing media history.
+            columns = {row["name"] for row in db.execute("PRAGMA table_info(media)")}
+            if "rotation_enabled" not in columns:
+                db.execute("ALTER TABLE media ADD COLUMN rotation_enabled INTEGER NOT NULL DEFAULT 0")
 
     def scan(self):
         found = []
@@ -204,7 +209,23 @@ class Station:
 
     def media_list(self):
         with self.db() as db:
-            return [dict(r) for r in db.execute("SELECT path,kind,size FROM media ORDER BY kind,path")]
+            return [{**dict(r), "rotation_enabled": bool(r["rotation_enabled"])}
+                    for r in db.execute("SELECT path,kind,size,rotation_enabled FROM media ORDER BY kind,path")]
+
+    def set_rotation(self, payload):
+        """Only explicitly approved music is eligible for automatic play."""
+        path = payload.get("media_path")
+        enabled = payload.get("enabled")
+        if type(enabled) is not bool:
+            raise ValueError("enabled doit être un booléen")
+        safe_media_path(self.root, path)
+        with self.db() as db:
+            row = db.execute("SELECT kind FROM media WHERE path=?", (path,)).fetchone()
+            if row is None or row["kind"] != "music":
+                raise ValueError("Seules les musiques indexées peuvent être autorisées en rotation")
+            db.execute("UPDATE media SET rotation_enabled=? WHERE path=?",
+                       (int(enabled), path))
+        return {"media_path": path, "rotation_enabled": enabled}
 
     def rules_list(self):
         with self.db() as db:
@@ -276,7 +297,9 @@ class Station:
 
     def _choose(self, db, kind):
         rows = [r["path"] for r in db.execute(
-            "SELECT path FROM media WHERE kind=? ORDER BY path", (kind,)).fetchall()
+            ("SELECT path FROM media WHERE kind=? AND rotation_enabled=1 ORDER BY path"
+             if kind == "music" else "SELECT path FROM media WHERE kind=? ORDER BY path"),
+            (kind,)).fetchall()
             if (kind != "jingles" or r["path"].startswith("Jingles/Général/"))
             and safe_media_path(self.root, r["path"]).is_file()]
         if not rows:
@@ -478,6 +501,8 @@ class API(BaseHTTPRequestHandler):
                 payload = self.json_body()
                 created = self.station.create_folder(payload.get("parent"), payload.get("name"))
                 return self.respond(201, {"path": created})
+            if route == "/api/admin/rotation":
+                return self.respond(200, self.station.set_rotation(self.json_body()))
             if route == "/api/admin/rules":
                 ident = self.station.add_rule(self.json_body())
                 return self.respond(201, {"id": ident})
