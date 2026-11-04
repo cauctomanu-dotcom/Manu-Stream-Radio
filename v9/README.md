@@ -35,13 +35,20 @@ PAS dire que l'Ubuntu invité voit automatiquement les 2 To. Avant de
 déployer, vérifier ses montages (df -h), et monter depuis Ubuntu le partage
 SMB/CIFS Freebox ou un montage déjà validé.
 
-Le moteur attend par défaut :
+Le moteur utilise désormais les noms **exacts** de ton studio Windows. Le
+dossier Radio-V9 conserve l'arborescence copiée avec Robocopy :
 
-    /srv/msr-v9-media/music
-    /srv/msr-v9-media/jingles
-    /srv/msr-v9-media/chronicles
-    /srv/msr-v9-media/ads
-    /srv/msr-v9-media/shows
+    /srv/msr-v9-media/Musique
+    /srv/msr-v9-media/Jingles
+    /srv/msr-v9-media/Chroniques
+    /srv/msr-v9-media/Emissions
+    /srv/msr-v9-media/Pubs
+
+Il conserve aussi Best Of, Effets, Fonds d'antenne, Infos et Météo et les
+sous-dossiers existants, sans renommer les fichiers. Le répertoire caché
+.studio-edit n'est pas ouvert à la création par l'API. La copie Robocopy
+avec /XF * a copié **les dossiers uniquement** : aucun média n'est encore
+présent sur le partage V9.
 
 Faire pointer /srv/msr-v9-media vers un vrai dossier du disque 2 To, avec
 montage automatique et permissions adaptées. Ne PAS déplacer ni supprimer
@@ -91,13 +98,19 @@ Administrateur, jeton requis :
 - GET /api/admin/state : programmation et médiathèque.
 - POST /api/admin/scan : indexation des fichiers audio.
 - POST /api/admin/rules : créer une programmation.
+- POST /api/admin/folders : créer un nouveau sous-dossier dans une catégorie
+  existante (parent + name), puis rafraîchir toutes les interfaces.
+  Ex. {"parent":"Jingles","name":"Saint-Valentin"}.
+  Le serveur valide les noms UTF-8, rejette les chemins dangereux et interdit
+  d'écrire en dehors de la médiathèque.
 - DELETE /api/admin/rules/{id} : supprimer une règle.
-- PUT /api/admin/media/{category}/{filename} : transférer un média directement
-  vers le serveur par petits blocs, sans écraser les médias existants.
+- PUT /api/admin/media/{category}/{sous-dossier}/{filename} : transférer un
+  média directement vers un dossier existant sur le serveur, par petits blocs,
+  sans écraser les médias existants.
 
 Exemple de règle JSON :
 
-    {"title":"Actu Gaming","media_path":"chronicles/gaming.mp3",
+    {"title":"Actu Gaming","media_path":"Chroniques/Actu Gaming/gaming.mp3",
      "local_time":"15:15","weekdays":[0,1,2,3,4,5,6]}
 
 Le moteur vérifie les événements **au changement de piste**. Si une
@@ -128,3 +141,24 @@ programApiUrl, encore vides. Leur activation attend une URL HTTPS testée :
 - Valider les horaires Europe/Paris, les redémarrages, la résilience du proxy.
 - Prévoir un onduleur pour Freebox/VM : une panne électrique de leur
   alimentation reste une coupure de diffusion.
+
+## Nouveau dossier depuis la Remote et le Studio
+
+Le panneau V9 (`/admin/`) propose dès maintenant « Nouveau sous-dossier » :
+on choisit son dossier parent (ex. Jingles), on saisit Saint-Valentin et le
+serveur crée `Jingles/Saint-Valentin`. Les listes sont réactualisées dans
+l'interface, y compris lors d'une nouvelle connexion.
+
+Pour le **Studio V8.3 Windows et la Remote actuels**, leur raccordement
+à l'API V9 reste à effectuer : le code Windows n'est pas dans GitHub et la
+Remote actuelle fonctionne encore avec sa signalisation Supabase. **Ne pas
+injecter le jeton administrateur serveur dans le JavaScript public GitHub
+Pages ni dans une clé partagée à tous les chroniqueurs.** Prévoir une API
+d'actions médiathèque avec authentification nominative et permissions
+(lecture, création de dossier, envoi de fichier), puis faire appeler
+`POST /api/admin/folders` uniquement par la passerelle serveur autorisée.
+
+Lorsque la Remote et le Studio sont raccordés, une création de dossier doit
+apparaître dans leurs deux explorateurs sans duplication locale. Aucune
+réorganisation des noms historiques ni déplacement de médias ne se fait
+automatiquement pendant cette phase de développement.
