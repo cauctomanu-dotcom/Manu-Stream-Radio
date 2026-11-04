@@ -68,13 +68,13 @@ class APITest(unittest.TestCase):
 
     def test_media_upload_then_schedule(self):
         payload = b"pretend MP3 file" * 500
-        status, data = self.request("PUT", "/api/admin/media/chronicles/gaming.mp3", payload)
+        status, data = self.request("PUT", "/api/admin/media/Chroniques/gaming.mp3", payload)
         self.assertEqual(status, 201)
         self.assertEqual(data["bytes"], len(payload))
-        self.assertEqual((self.root / "media/chronicles/gaming.mp3").read_bytes(), payload)
-        code, _ = self.request("PUT", "/api/admin/media/chronicles/gaming.mp3", b"overwrite")
+        self.assertEqual((self.root / "media/Chroniques/gaming.mp3").read_bytes(), payload)
+        code, _ = self.request("PUT", "/api/admin/media/Chroniques/gaming.mp3", b"overwrite")
         self.assertEqual(code, 409)
-        rule = {"title": "Actu gaming", "media_path": "chronicles/gaming.mp3",
+        rule = {"title": "Actu gaming", "media_path": "Chroniques/gaming.mp3",
                 "local_time": "15:15", "weekdays": [0, 1, 2, 3, 4, 5, 6]}
         code, out = self.request("POST", "/api/admin/rules", json.dumps(rule).encode(),
                                  extra_headers={"Content-Type": "application/json"})
@@ -87,8 +87,30 @@ class APITest(unittest.TestCase):
         self.assertEqual(code, 200)
         self.assertEqual(deleted["deleted"], out["id"])
 
+    def test_new_folder_api_and_nested_upload(self):
+        self.server.station.scan()
+        folder = {"parent": "Jingles", "name": "Saint-Valentin"}
+        code, out = self.request("POST", "/api/admin/folders",
+            json.dumps(folder).encode(),extra_headers={"Content-Type":"application/json"})
+        self.assertEqual(code, 201)
+        self.assertEqual(out["path"], "Jingles/Saint-Valentin")
+        code, _ = self.request("POST", "/api/admin/folders",json.dumps(folder).encode())
+        self.assertEqual(code, 409)
+        code, state = self.request("GET", "/api/admin/state")
+        self.assertIn("Jingles/Saint-Valentin", state["folders"])
+        code, result = self.request("PUT",
+            "/api/admin/media/Jingles/Saint-Valentin/Special.mp3", b"data")
+        self.assertEqual(code, 201)
+        self.assertEqual(result["saved"],"Jingles/Saint-Valentin/Special.mp3")
+        bad = {"parent": "Jingles", "name": "../outside"}
+        code, _ = self.request("POST", "/api/admin/folders",json.dumps(bad).encode())
+        self.assertEqual(code, 400)
+        code, _ = self.request("POST", "/api/admin/folders",
+            json.dumps({"parent":"Jingles", "name":"Hack"}).encode(), authenticated=False)
+        self.assertEqual(code, 401)
+
     def test_upload_traversal_is_rejected(self):
-        code, _ = self.request("PUT", "/api/admin/media/chronicles/../../../escape.mp3", b"x")
+        code, _ = self.request("PUT", "/api/admin/media/Chroniques/../../../escape.mp3", b"x")
         self.assertEqual(code, 400)
 
 
