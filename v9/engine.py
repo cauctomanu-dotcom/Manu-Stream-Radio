@@ -24,12 +24,19 @@ from urllib.parse import unquote, urlparse
 from urllib.request import urlopen
 from zoneinfo import ZoneInfo
 
+# Preserve the actual Windows Studio/Remote directory names, including accents.
+# Values are internal categories used by the scheduler and DB.
 KINDS = {
-    "music": "Musique",
-    "jingles": "Jingle",
-    "chronicles": "Chronique",
-    "ads": "Publicité",
-    "shows": "Émission",
+    "Best Of": "bestof",
+    "Chroniques": "chronicles",
+    "Effets": "effects",
+    "Emissions": "shows",
+    "Fonds d'antenne": "beds",
+    "Infos": "infos",
+    "Jingles": "jingles",
+    "Musique": "music",
+    "Météo": "weather",
+    "Pubs": "ads",
 }
 EXTENSIONS = {".mp3", ".wav", ".m4a", ".flac", ".ogg", ".aac"}
 LOCAL_TZ = ZoneInfo("Europe/Paris")
@@ -54,6 +61,33 @@ def safe_media_path(root: Path, relative: str) -> Path:
     if not target.is_relative_to(root.resolve()):
         raise ValueError("Chemin hors de la bibliothèque")
     return target
+
+
+def safe_folder_path(root: Path, relative: str) -> Path:
+    """Resolve a real user-visible folder under one of the Studio categories."""
+    if not isinstance(relative, str) or not relative:
+        raise ValueError("Choisir un dossier parent")
+    if "\\" in relative:
+        raise ValueError("Utiliser / pour les sous-dossiers")
+    rel = Path(relative)
+    if rel.is_absolute() or ".." in rel.parts or rel.parts[0] not in KINDS:
+        raise ValueError("Dossier hors de la médiathèque")
+    if any(not part or part.startswith(".") or any(c in part for c in '<>:"|?*\\\x00') for part in rel.parts):
+        raise ValueError("Nom de dossier non autorisé")
+    resolved = (root / rel).resolve()
+    if not resolved.is_relative_to(root.resolve()):
+        raise ValueError("Dossier hors de la médiathèque")
+    return resolved
+
+
+def validate_folder_name(name: str) -> str:
+    if not isinstance(name, str) or name != name.strip() or not 1 <= len(name) <= 120:
+        raise ValueError("Le nom doit comporter entre 1 et 120 caractères, sans espaces en bordure")
+    if name in (".", "..") or name.startswith(".") or name.endswith("."):
+        raise ValueError("Nom de dossier non autorisé")
+    if any(c in name for c in '/\\<>:"|?*\x00') or any(ord(c) < 32 for c in name):
+        raise ValueError("Caractère interdit dans le nom du dossier")
+    return name
 
 
 class Station:
@@ -99,8 +133,8 @@ class Station:
 
     def scan(self):
         found = []
-        for kind in KINDS:
-            folder = self.root / kind
+        for category, kind in KINDS.items():
+            folder = self.root / category
             folder.mkdir(parents=True, exist_ok=True)
             for item in folder.rglob("*"):
                 if not item.is_file() or item.is_symlink() or item.suffix.lower() not in EXTENSIONS:
@@ -135,6 +169,38 @@ class Station:
     def _put(db, key: str, value: str):
         db.execute("""INSERT INTO state(key,value) VALUES(?,?)
             ON CONFLICT(key) DO UPDATE SET value=excluded.value""", (key, value))
+
+    def folder_list(self):
+        """Current folder tree, including new subfolders created by operators."""
+        folders = []
+        for category in KINDS:
+            base = self.root / category
+            if not base.is_dir() or base.is_symlink():
+                continue
+            folders.append(category)
+            for folder in base.rglob("*"):
+                if not folder.is_dir() or folder.is_symlink():
+                    continue
+                rel = folder.relative_to(self.root).as_posix()
+                if any(part.startswith(".") for part in folder.relative_to(self.root).parts):
+                    continue
+                try:
+                    safe_folder_path(self.root, rel)
+                except ValueError:
+                    continue
+                folders.append(rel)
+        return sorted(folders, key=str.casefold)
+
+    def create_folder(self, parent: str, name: str):
+        name = validate_folder_name(name)
+        parent_path = safe_folder_path(self.root, parent)
+        if not parent_path.is_dir() or parent_path.is_symlink():
+            raise ValueError("Le dossier parent n'existe pas")
+        target = safe_folder_path(self.root, (Path(parent) / name).as_posix())
+        if target.exists():
+            raise FileExistsError("Ce dossier existe déjà")
+        target.mkdir(exist_ok=False)
+        return target.relative_to(self.root).as_posix()
 
     def media_list(self):
         with self.db() as db:
@@ -394,7 +460,8 @@ class API(BaseHTTPRequestHandler):
             if route == "/api/admin/state":
                 return self.respond(200, {"status": self.station.status(),
                                           "rules": self.station.rules_list(),
-                                          "media": self.station.media_list()})
+                                          "media": self.station.media_list(),
+                                          "folders": self.station.folder_list()})
             return self.respond(404, {"error": "Introuvable"})
         except Exception as err:
             return self.respond(500, {"error": type(err).__name__})
@@ -406,10 +473,16 @@ class API(BaseHTTPRequestHandler):
         try:
             if route == "/api/admin/scan":
                 return self.respond(200, self.station.scan())
+            if route == "/api/admin/folders":
+                payload = self.json_body()
+                created = self.station.create_folder(payload.get("parent"), payload.get("name"))
+                return self.respond(201, {"path": created})
             if route == "/api/admin/rules":
                 ident = self.station.add_rule(self.json_body())
                 return self.respond(201, {"id": ident})
             return self.respond(404, {"error": "Introuvable"})
+        except FileExistsError as err:
+            return self.respond(409, {"error": str(err)})
         except (ValueError, json.JSONDecodeError) as err:
             return self.respond(400, {"error": str(err)})
         except Exception as err:
@@ -435,12 +508,14 @@ class API(BaseHTTPRequestHandler):
         file_part = unquote(route[len(prefix):])
         try:
             target = safe_media_path(self.station.root, file_part)
-            if not target.parent.is_relative_to(self.station.root):
-                raise ValueError("Destination invalide")
+            parent = target.parent
+            parent_rel = parent.relative_to(self.station.root).as_posix()
+            safe_folder_path(self.station.root, parent_rel)
+            if not parent.is_dir() or parent.is_symlink():
+                raise ValueError("Créez d'abord le dossier de destination")
             length = int(self.headers.get("Content-Length", "0"))
             if not 0 < length <= MAX_UPLOAD:
                 raise ValueError("Fichier vide ou dépassement de la taille autorisée")
-            target.parent.mkdir(parents=True, exist_ok=True)
             if target.exists():
                 return self.respond(409, {"error": "Un fichier porte déjà ce nom"})
             temporary = None
