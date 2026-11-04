@@ -346,13 +346,45 @@
     }
   };
 
-  if (cfg.realtimeEnabled && cfg.supabaseUrl && cfg.supabasePublishableKey && cfg.realtimeTopic) {
-    await setupRealtimeBridge();
-  } else if (cfg.audioStreamUrl) {
+  if (cfg.audioStreamUrl) {
     setAudio(cfg.audioStreamUrl);
+  } else if (cfg.realtimeEnabled && cfg.supabaseUrl && cfg.supabasePublishableKey && cfg.realtimeTopic) {
+    await setupRealtimeBridge();
   } else if (cfg.twitchChannel) {
     setIframe(`https://player.twitch.tv/?channel=${encodeURIComponent(cfg.twitchChannel)}&parent=${encodeURIComponent(host)}&autoplay=false`, 'DIRECT INTÉGRÉ', 'autoplay; fullscreen');
   } else if (cfg.youtubeChannelId) {
     setIframe(`https://www.youtube.com/embed/live_stream?channel=${encodeURIComponent(cfg.youtubeChannelId)}&autoplay=0`, 'DIRECT INTÉGRÉ', 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share');
   }
+
+  // V9: read-only public schedule sync. No API token is ever sent to the site.
+  // Disabled until the HTTPS reverse proxy and server API have been verified.
+  const programApiUrl = String(cfg.programApiUrl || '').replace(/\/+$/, '');
+  if (programApiUrl) {
+    const updateProgramming = async () => {
+      try {
+        const response = await fetch(programApiUrl + '/status', { cache: 'no-store' });
+        if (!response.ok) throw new Error('HTTP ' + response.status);
+        const state = await response.json();
+        const current = state.selected || {};
+        if (current.title) {
+          nowTitle.textContent = current.title;
+          if (current.category) sub.textContent = 'Programmation serveur · ' + current.category;
+        }
+        if (state.next && state.next[0]) {
+          const next = state.next[0];
+          const when = new Date(next.starts_at).toLocaleTimeString('fr-FR', {hour:'2-digit',minute:'2-digit'});
+          $('nextShow').textContent = when + ' · ' + next.title;
+        }
+        if (typeof state.online === 'boolean') {
+          setLive(state.online);
+        }
+      } catch (error) {
+        console.warn('Grille V9 temporairement indisponible', error);
+        // Never falsely mark a working stream offline due to a schedule-API error.
+      }
+    };
+    void updateProgramming();
+    setInterval(updateProgramming, 30000);
+  }
+
 })();
