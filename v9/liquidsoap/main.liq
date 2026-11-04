@@ -24,7 +24,7 @@ managed = request.dynamic(
 )
 
 # A separate fallback protects the stream if the scheduler or database fails.
-backup = playlist("/srv/msr-v9-media/music")
+backup = playlist("/srv/msr-v9-media/Musique")
 automatic = fallback(track_sensitive=true, [managed, backup])
 
 # Live takes priority only when a DJ explicitly connects to the studio input.
