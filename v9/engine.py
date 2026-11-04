@@ -281,6 +281,135 @@ class Station:
             db.commit()
         return {"plannerOn": enabled, "plannerRules": rules, "revision": revision + 1}
 
+    @staticmethod
+    def _studio_window_active(rule, now):
+        """Active windows are interpreted in Europe/Paris; weekdays use Monday=0."""
+        if rule.get("enabled") is not True or now.weekday() not in rule.get("days", []):
+            return False
+        start = rule.get("start")
+        end = rule.get("end")
+        if not isinstance(start, str) or not isinstance(end, str):
+            return False
+        if not TIME_RE.fullmatch(start) or not TIME_RE.fullmatch(end):
+            return False
+        clock = now.strftime("%H:%M")
+        # Windows crossing midnight require an extended interpretation of the
+        # previous day's rule; fail closed until that behavior is tested.
+        return start <= clock <= end if start <= end else False
+
+    def studio_planner_preview(self, now=None):
+        """Read-only planner interpretation; does not select or queue audio."""
+        now = (now or datetime.now(LOCAL_TZ)).astimezone(LOCAL_TZ)
+        snapshot = self.studio_planner()
+        active = bool(snapshot["plannerOn"])
+        rules = snapshot["plannerRules"] if active else []
+        current = [r for r in rules if self._studio_window_active(r, now)]
+        rotations = [r for r in current if r.get("kind") == "rotation"]
+        jingles = [r for r in current if r.get("kind") == "jingle-cadence"]
+        upcoming = []
+        missing = []
+        for delta in range(8):
+            date = (now + timedelta(days=delta)).date()
+            for rule in rules:
+                if rule.get("enabled") is not True or date.weekday() not in rule.get("days", []):
+                    continue
+                if rule.get("kind") not in ("chronicle", "chronicle-yesterday", "info", "best-of"):
+                    continue
+                if rule.get("scheduleMode") != "exact-times":
+                    continue
+                path = rule.get("mediaRel")
+                if not isinstance(path, str) or not path:
+                    continue
+                for hour in rule.get("exactTimes", []):
+                    if not isinstance(hour, str) or not TIME_RE.fullmatch(hour):
+                        continue
+                    # Midnight-crossing windows are not yet supported: fail closed.
+                    start, end = rule.get("start", ""), rule.get("end", "")
+                    if not (isinstance(start, str) and isinstance(end, str) and
+                            TIME_RE.fullmatch(start) and TIME_RE.fullmatch(end) and start <= hour <= end):
+                        continue
+                    hh, mm = map(int, hour.split(":"))
+                    occurrence = datetime(date.year, date.month, date.day, hh, mm, tzinfo=LOCAL_TZ)
+                    if occurrence < now:
+                        continue
+                    try:
+                        available = safe_media_path(self.root, path).is_file()
+                    except ValueError:
+                        available = False
+                    if not available and path not in missing:
+                        missing.append(path)
+                    upcoming.append({"rule_id": rule.get("id"), "title": rule.get("label") or
+                                     Path(path).stem, "starts_at": occurrence.isoformat(),
+                                     "media_path": path, "media_available": available})
+        return {
+            "revision": snapshot["revision"],
+            "plannerOn": active,
+            "active_rotation_count": len(rotations),
+            "active_jingle_every_tracks": (jingles[0].get("everyTracks") if len(jingles) == 1 else None),
+            "upcoming_exact_times": sorted(upcoming, key=lambda x: x["starts_at"])[:30],
+            "missing_media": missing,
+            "execution_enabled": os.environ.get("MSR_ENABLE_STUDIO_PLANNER", "0") == "1",
+            "unsupported_in_preview": ["smart jingle decisions", "120-minute rotation repeat policy",
+                                       "non-exact scheduling modes", "overnight windows"]
+        }
+
+    def _studio_due_rows(self, db, now):
+        """Opt-in exact-time events, using the existing run deduplication table."""
+        snapshot_raw = self._get(db, "studio_planner_snapshot_v1")
+        if not snapshot_raw:
+            return []
+        snapshot = json.loads(snapshot_raw)
+        if snapshot.get("plannerOn") is not True:
+            return []
+        due = []
+        for rule in snapshot.get("plannerRules", []):
+            if not self._studio_window_active(rule, now):
+                continue
+            if rule.get("kind") not in ("chronicle", "chronicle-yesterday", "info", "best-of"):
+                continue
+            if rule.get("scheduleMode") != "exact-times" or rule.get("sourceMode") != "exact":
+                continue
+            path = rule.get("mediaRel")
+            if not isinstance(path, str):
+                continue
+            try:
+                if not safe_media_path(self.root, path).is_file():
+                    continue
+            except ValueError:
+                continue
+            for hour in rule.get("exactTimes", []):
+                if not isinstance(hour, str) or not TIME_RE.fullmatch(hour):
+                    continue
+                if not (rule["start"] <= hour <= rule["end"]):
+                    continue
+                scheduled = now.replace(hour=int(hour[:2]), minute=int(hour[3:]),
+                                        second=0, microsecond=0)
+                delay = (now - scheduled).total_seconds()
+                if not 0 <= delay <= 90 * 60:
+                    continue
+                occurrence = scheduled.strftime("%Y-%m-%dT%H:%M")
+                key = "studio:" + str(rule.get("id", ""))
+                if db.execute("SELECT 1 FROM runs WHERE rule_id=? AND occurrence=?",
+                              (key, occurrence)).fetchone():
+                    continue
+                due.append((scheduled, {"id": key, "occurrence": occurrence,
+                                        "media_path": path, "title": rule.get("label") or Path(path).stem}))
+        return sorted(due, key=lambda item: (item[0], item[1]["id"]))
+
+    def _studio_jingle_threshold(self, db, now):
+        raw = self._get(db, "studio_planner_snapshot_v1")
+        if not raw:
+            return None
+        snapshot = json.loads(raw)
+        if snapshot.get("plannerOn") is not True:
+            return None
+        eligible = [rule for rule in snapshot.get("plannerRules", [])
+                    if rule.get("kind") == "jingle-cadence" and self._studio_window_active(rule, now)]
+        if len(eligible) != 1:
+            return None
+        threshold = eligible[0].get("everyTracks")
+        return threshold if type(threshold) is int and 1 <= threshold <= 20 else None
+
     def rules_list(self):
         with self.db() as db:
             return [self._serialize_rule(r) for r in db.execute("SELECT * FROM rules ORDER BY local_time,title")]
@@ -392,6 +521,23 @@ class Station:
                     db.commit()
                     return result
             due = self._due_rows(db, now)
+            if os.environ.get("MSR_ENABLE_STUDIO_PLANNER", "0") == "1":
+                studio_due = self._studio_due_rows(db, now)
+                # Do not preempt already-due legacy rules, preserve existing order.
+                if not due and studio_due:
+                    _, studio_rule = studio_due[0]
+                    path = studio_rule["media_path"]
+                    intro = self._choose(db, "jingles")
+                    if intro:
+                        self._put(db, "pending_rule", json.dumps(studio_rule, ensure_ascii=False))
+                        result = self._record(db, intro, "jingles")
+                        db.commit()
+                        return result
+                    db.execute("""INSERT OR IGNORE INTO runs(rule_id,occurrence,played_utc)
+                        VALUES(?,?,?)""", (studio_rule["id"], studio_rule["occurrence"], utc_now()))
+                    result = self._record(db, path, "scheduled", studio_rule["title"])
+                    db.commit()
+                    return result
             if due:
                 _, rule, occurrence = due[0]
                 rel = rule["media_path"]
@@ -410,7 +556,11 @@ class Station:
                     db.commit()
                     return result
             count = int(self._get(db, "songs_since_jingle", "0"))
-            jingle = self._choose(db, "jingles") if count >= 3 else None
+            threshold = (self._studio_jingle_threshold(db, now)
+                         if os.environ.get("MSR_ENABLE_STUDIO_PLANNER", "0") == "1" else None)
+            if threshold is None:
+                threshold = 3  # Existing V9 behavior stays the default.
+            jingle = self._choose(db, "jingles") if count >= threshold else None
             if jingle:
                 self._put(db, "songs_since_jingle", "0")
                 result = self._record(db, jingle, "jingles")
@@ -535,6 +685,8 @@ class API(BaseHTTPRequestHandler):
                 return self.respond(200, page, "text/html; charset=utf-8")
             if not self.authorized():
                 return self.respond(401, {"error": "Accès réservé"})
+            if route == "/api/admin/studio-planner/preview":
+                return self.respond(200, self.station.studio_planner_preview())
             if route == "/api/admin/studio-planner":
                 return self.respond(200, self.station.studio_planner())
             if route == "/api/admin/state":
