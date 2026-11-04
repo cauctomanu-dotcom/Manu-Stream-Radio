@@ -1,6 +1,6 @@
 # Manu Stream Radio V9 — antenne autonome (préproduction)
 
-**État : en développement sur branche séparée. NON déployé sur la VM et NON relié au flux public.**
+**État : V9 en expérimentation sur le montage Icecast `/manustream-v9-test` (non reliée au flux public). La correction des autorisations de rotation ci-dessous est uniquement sur la branche GitHub tant qu'elle n'a pas été testée et déployée explicitement.**
 La V8.3 Windows et la source Icecast /manustream restent inchangées.
 
 ## Principe
@@ -8,8 +8,17 @@ La V8.3 Windows et la source Icecast /manustream restent inchangées.
 - Ubuntu exécute Liquidsoap en permanence, indépendant de Chromium et du PC.
 - Les médias définitifs sont sur le partage Freebox de 2 To (musique, jingles,
   chroniques, émissions, publicités). SQLite conserve les métadonnées, pas le son.
-- Python choisit le contenu à lire uniquement à chaque **fin de piste**.
-  Aucune chronique n'interrompt une chanson en cours. Le jingle passe avant.
+- Python choisit les pistes à préparer pour les prochaines fins de morceau.
+  Liquidsoap précharge des requêtes ; la synchronisation exacte entre titres réellement diffusés et programmés reste à valider.
+- **Rotation musicale sur liste blanche** : chaque musique doit être explicitement
+  autorisée en rotation (`rotation_enabled`, désactivé par défaut).
+  Ni les musiques non autorisées ni les nouveaux fichiers ne sont tirés au sort.
+  Les autorisations sont conservées pendant les analyses successives de médiathèque.
+  Si aucune musique n'est autorisée, le secours diffuse temporairement du silence
+  plutôt que de contourner la sélection. Importer d'abord les autorisations de l'ancien Studio
+  ou les cocher dans la régie V9 avant la mise en production.
+- Une chronique prévue doit être lancée après la chanson et son jingle ; la précision
+  horaire reste à confirmer par des essais réels.
 - Seul le dossier **Jingles/Général** alimente les jingles automatiques
   (entre deux titres et avant les programmes). Les jingles Noël, Halloween
   et ceux des émissions restent disponibles pour une programmation explicite.
@@ -89,7 +98,7 @@ Linux local (/var/lib/msr-v9), jamais sur un partage SMB.
 9. Après validation seulement, planifier le basculement de la source publique,
    en gardant un retour immédiat à V8.3 en cas d'échec.
 
-**Les commandes ci-dessus ne sont pas encore exécutées sur la VM.**
+**Validation des nouvelles autorisations** : exécuter les tests Python et `liquidsoap --check` dans un répertoire temporaire avant toute mise à jour des services V9 en cours. Ne jamais appliquer cette version en production sans avoir renseigné la liste autorisée. Les anciens fichiers de la V9 test ont déjà été essayés sur Ubuntu, mais cette nouvelle modification n'a pas encore été testée sur la VM.
 
 ## API
 
@@ -100,7 +109,9 @@ Public, lecture seule :
 - GET /api/public/schedule : prochaines occurrences programmées.
 
 Administrateur, jeton requis :
-- GET /api/admin/state : programmation et médiathèque.
+- GET /api/admin/state : programmation, médiathèque et drapeaux `rotation_enabled`.
+- POST /api/admin/rotation : `{ "media_path": "Musique/Mon titre.mp3", "enabled": true }`
+  (jeton administrateur obligatoire, musique déjà indexée).
 - POST /api/admin/scan : indexation des fichiers audio.
 - POST /api/admin/rules : créer une programmation.
 - POST /api/admin/folders : créer un nouveau sous-dossier dans une catégorie
