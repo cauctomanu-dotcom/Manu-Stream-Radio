@@ -31,6 +31,9 @@ class SchedulerTest(unittest.TestCase):
             for name in names:
                 (path / name).write_bytes(b"test file")
         self.station.scan()
+        # Existing scheduler tests assume an explicitly approved six-song library.
+        for name in ("a", "b", "c", "d", "e", "f"):
+            self.station.set_rotation({"media_path": f"Musique/{name}.mp3", "enabled": True})
 
     def tearDown(self):
         self.tmp.cleanup()
@@ -42,6 +45,25 @@ class SchedulerTest(unittest.TestCase):
         items = [Path(self.station.next_media(self.at(8, 0))).name for _ in range(3)]
         self.assertEqual(len(set(items)), 3)
         self.assertEqual(Path(self.station.next_media(self.at(8, 12))).name, "intro.mp3")
+
+    def test_only_explicitly_authorized_music_can_rotate(self):
+        for name in ("b", "c", "d", "e", "f"):
+            self.station.set_rotation({"media_path": f"Musique/{name}.mp3", "enabled": False})
+        self.assertEqual(Path(self.station.next_media(self.at(8, 0))).name, "a.mp3")
+        self.assertEqual(Path(self.station.next_media(self.at(8, 1))).name, "a.mp3")
+        self.station.set_rotation({"media_path": "Musique/a.mp3", "enabled": False})
+        self.assertEqual(self.station.next_media(self.at(8, 2)), "")
+
+    def test_new_media_start_disabled_and_scan_preserves_permissions(self):
+        (self.media / "Musique" / "new.mp3").write_bytes(b"test")
+        self.station.scan()
+        music = {x["path"]: x for x in self.station.media_list() if x["kind"] == "music"}
+        self.assertFalse(music["Musique/new.mp3"]["rotation_enabled"])
+        self.assertTrue(music["Musique/a.mp3"]["rotation_enabled"])
+        with self.assertRaises(ValueError):
+            self.station.set_rotation({"media_path": "Chroniques/gaming.wav", "enabled": True})
+        with self.assertRaises(ValueError):
+            self.station.set_rotation({"media_path": "Musique/a.mp3", "enabled": 1})
 
     def test_automatic_jingles_use_only_general(self):
         seasonal = self.media / "Jingles" / "Noël"
