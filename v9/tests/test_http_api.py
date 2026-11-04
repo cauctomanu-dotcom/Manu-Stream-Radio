@@ -88,6 +88,25 @@ class APITest(unittest.TestCase):
         self.assertEqual(code, 200)
         self.assertEqual(deleted["deleted"], out["id"])
 
+    def test_rotation_admin_api_is_secure_and_defaults_disabled(self):
+        payload=b"pretend music"
+        status, _=self.request("PUT","/api/admin/media/Musique/selected.mp3",payload)
+        self.assertEqual(status,201)
+        _, state=self.request("GET","/api/admin/state")
+        song=next(r for r in state["media"] if r["path"]=="Musique/selected.mp3")
+        self.assertFalse(song["rotation_enabled"])
+        request_body=json.dumps({"media_path":"Musique/selected.mp3","enabled":True}).encode()
+        status, _=self.request("POST","/api/admin/rotation",request_body,authenticated=False)
+        self.assertEqual(status,401)
+        status, approved=self.request("POST","/api/admin/rotation",request_body)
+        self.assertEqual(status,200)
+        self.assertTrue(approved["rotation_enabled"])
+        _, state=self.request("GET","/api/admin/state")
+        song=next(r for r in state["media"] if r["path"]=="Musique/selected.mp3")
+        self.assertTrue(song["rotation_enabled"])
+        status, _=self.request("POST","/api/admin/rotation",json.dumps({"media_path":"Musique/selected.mp3","enabled":1}).encode())
+        self.assertEqual(status,400)
+
     def test_new_folder_api_and_nested_upload(self):
         self.server.station.scan()
         folder = {"parent": "Jingles", "name": "Saint-Valentin"}
