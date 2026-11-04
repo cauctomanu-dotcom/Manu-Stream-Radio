@@ -530,6 +530,10 @@ class Station:
                     intro = self._choose(db, "jingles")
                     if intro:
                         self._put(db, "pending_rule", json.dumps(studio_rule, ensure_ascii=False))
+                        # The scheduled-program introduction IS a jingle: reset
+                        # the music counter so another jingle is not selected
+                        # immediately after the chronicle.
+                        self._put(db, "songs_since_jingle", "0")
                         result = self._record(db, intro, "jingles")
                         db.commit()
                         return result
