@@ -46,6 +46,15 @@ class DryRunTest(unittest.TestCase):
             "mediaRel": "Chroniques/Actu Gaming/gaming.wav"
         }
 
+    def jingle_rule(self):
+        return {
+            "id": "jingles", "kind": "jingle-cadence",
+            "label": "", "days": list(range(7)),
+            "enabled": True, "start": "00:00", "end": "23:59",
+            "everyTracks": 2, "jingleSubcategory": "Général",
+            "smart": True,
+        }
+
     def count(self, table):
         with sqlite3.connect(self.db) as db:
             return db.execute("SELECT COUNT(*) FROM " + table).fetchone()[0]
@@ -53,7 +62,7 @@ class DryRunTest(unittest.TestCase):
     def test_dry_run_exercises_scheduled_chronicle_but_preserves_live_database(self):
         self.station.update_studio_planner({
             "expected_revision": 0, "plannerOn": True,
-            "plannerRules": [self.rule(True)]})
+            "plannerRules": [self.rule(True), self.jingle_rule()]})
         previous_flag = os.environ.get("MSR_ENABLE_STUDIO_PLANNER")
         # Reproduce the real-world issue: the scheduled introduction fires
         # after two songs, so the previous jingle counter is already at 2.
@@ -67,6 +76,8 @@ class DryRunTest(unittest.TestCase):
             ["jingles", "scheduled", "music", "music", "jingles", "music", "music"]
         )
         self.assertEqual(results[0]["songs_since_jingle"], 0)
+        self.assertEqual(results[2]["songs_since_jingle"], 1)
+        self.assertEqual(results[3]["songs_since_jingle"], 2)
         self.assertEqual(results[1]["title"], "ACTU GAMING")
         self.assertEqual(results[4]["songs_since_jingle"], 0)
         self.assertEqual(before, {t: self.count(t) for t in ("runs", "history", "state")})
