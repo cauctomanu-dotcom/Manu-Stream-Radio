@@ -100,6 +100,42 @@ Linux local (/var/lib/msr-v9), jamais sur un partage SMB.
 
 **Validation des nouvelles autorisations** : exécuter les tests Python et `liquidsoap --check` dans un répertoire temporaire avant toute mise à jour des services V9 en cours. Ne jamais appliquer cette version en production sans avoir renseigné la liste autorisée. Les anciens fichiers de la V9 test ont déjà été essayés sur Ubuntu, mais cette nouvelle modification n'a pas encore été testée sur la VM.
 
+## Planificateur Studio 7J/24H — implémentation progressive (novembre 2026)
+
+Le snapshot Studio historique `studio_planner_snapshot_v1` est conservé dans
+SQLite sur Ubuntu (27 règles initiales). Le pont Windows provisoire
+`v9/tools/studio_planner_bridge.ps1` pousse les modifications du Studio via
+un tunnel SSH local, avec `expected_revision` pour éviter les écrasements.
+
+- `GET /api/admin/studio-planner` retourne le snapshot et sa révision.
+- `PUT /api/admin/studio-planner` exige le jeton administrateur et une
+  révision identique. Conflit : 409, aucun écrasement silencieux.
+- `GET /api/admin/studio-planner/preview` fournit **sans rien diffuser**
+  les rotations/jingles actifs, les prochains horaires exacts, et les
+  médias absents sur disque. Cette prévisualisation est un diagnostic,
+  pas une validation complète des règles du Studio.
+- Le moteur reconnaît à titre expérimental les règles actives
+  `exactTimes` avec `sourceMode=exact` et la cadence
+  `jingle-cadence.everyTracks`. Le code est présent mais NE s'exécute
+  que si `MSR_ENABLE_STUDIO_PLANNER=1` est explicitement configuré.
+  Valeur par défaut : **0 — désactivé**.
+- Le paramètre de rotation `repeatMinutes=120`, les décisions avancées
+  `smart`, les règles `timesPerHour`, les fenêtres passant minuit,
+  la génération des chroniques et les blocs publicitaires ne sont PAS encore
+  interprétés. Ne pas présenter la V9 comme un équivalent du Studio V8.3.
+- Liquidsoap précharge les médias. Les règles exactes sont évaluées
+  à la demande de piste, pas par un ordonnanceur à la seconde :
+  l'enchaînement et l'heure réelle doivent être qualifiés sur le flux TEST.
+- L'API et le pont doivent rester privés : ne jamais exposer le jeton dans
+  une page publique, ni ouvrir l'API brute sur Internet.
+
+Pour valider le code dans le worktree, **sans installer ni activer** :
+
+    python3 -m unittest discover -s v9/tests -v
+    python3 -m py_compile v9/engine.py
+
+Le flux public `/manustream` ne doit pas être changé pendant ces essais.
+
 ## API
 
 Public, lecture seule :
