@@ -1,0 +1,23 @@
+[Unit]
+Description=Manu Stream Radio V9 - programming API (test)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=msr
+Group=msr
+EnvironmentFile=/etc/msr-v9/station.env
+WorkingDirectory=/opt/manustream-v9/v9
+ExecStart=/usr/bin/python3 /opt/manustream-v9/v9/engine.py serve
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/msr-v9 /srv/msr-v9-media
+PrivateTmp=true
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target
