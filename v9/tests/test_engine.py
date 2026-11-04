@@ -89,6 +89,23 @@ class SchedulerTest(unittest.TestCase):
         self.assertNotIn("gaming.wav", restarted.next_media(self.at(15, 19)))
         self.assertEqual(len(restarted.rules_list()), 1)
 
+    def test_legacy_program_intro_resets_jingle_counter(self):
+        self.station.add_rule({"title": "Gaming",
+                               "media_path": "Chroniques/gaming.wav",
+                               "local_time": "15:15", "weekdays": [2]})
+        with self.station.db() as db:
+            self.station._put(db, "songs_since_jingle", "3")
+        results = [
+            Path(self.station.next_media(self.at(15, 17 + offset))).name
+            for offset in range(6)
+        ]
+        self.assertEqual(results[:2], ["intro.mp3", "gaming.wav"])
+        self.assertTrue(all(name in ("a.mp3", "b.mp3", "c.mp3", "d.mp3",
+                                     "e.mp3", "f.mp3") for name in results[2:5]))
+        self.assertEqual(results[5], "intro.mp3")
+        with self.station.db() as db:
+            self.assertEqual(self.station._get(db, "songs_since_jingle"), "0")
+
     def test_recurring_rule_is_not_replayed_same_day(self):
         self.station.add_rule({"title": "Vanessa", "media_path": "Chroniques/vanessa.mp3",
                                "local_time": "18:15", "weekdays": list(range(7))})
