@@ -1,0 +1,24 @@
+[Unit]
+Description=Manu Stream Radio V9 - autonomous playout (TEST mount)
+After=network-online.target msr-v9-api.service icecast2.service
+Wants=network-online.target
+Requires=msr-v9-api.service
+
+[Service]
+Type=simple
+User=msr
+Group=msr
+EnvironmentFile=/etc/msr-v9/station.env
+WorkingDirectory=/opt/manustream-v9/v9
+ExecStart=/usr/bin/liquidsoap /opt/manustream-v9/v9/liquidsoap/main.liq
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/msr-v9 /srv/msr-v9-media
+PrivateTmp=true
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target
