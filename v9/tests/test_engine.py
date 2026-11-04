@@ -22,9 +22,9 @@ class SchedulerTest(unittest.TestCase):
         self.media = base / "media"
         self.station = Station(self.media, base / "db" / "station.sqlite3")
         for folder, names in {
-            "music": ["a.mp3", "b.mp3", "c.mp3", "d.mp3", "e.mp3", "f.mp3"],
-            "jingles": ["intro.mp3"],
-            "chronicles": ["gaming.wav", "vanessa.mp3"],
+            "Musique": ["a.mp3", "b.mp3", "c.mp3", "d.mp3", "e.mp3", "f.mp3"],
+            "Jingles": ["intro.mp3"],
+            "Chroniques": ["gaming.wav", "vanessa.mp3"],
         }.items():
             path = self.media / folder
             path.mkdir(parents=True, exist_ok=True)
@@ -45,10 +45,10 @@ class SchedulerTest(unittest.TestCase):
 
     def test_program_waits_for_track_boundary_and_jingle(self):
         self.station.add_rule({"title": "Gaming",
-                               "media_path": "chronicles/gaming.wav",
+                               "media_path": "Chroniques/gaming.wav",
                                "local_time": "15:15", "weekdays": [2]})
         # Before the scheduled time, no rule starts.
-        self.assertIn("music", self.station.next_media(self.at(15, 14)))
+        self.assertIn("Musique", self.station.next_media(self.at(15, 14)))
         first = self.station.next_media(self.at(15, 17))
         self.assertEqual(Path(first).name, "intro.mp3")
         # The next track request after the jingle must play the SAME program.
@@ -59,7 +59,7 @@ class SchedulerTest(unittest.TestCase):
         self.assertEqual(len(restarted.rules_list()), 1)
 
     def test_recurring_rule_is_not_replayed_same_day(self):
-        self.station.add_rule({"title": "Vanessa", "media_path": "chronicles/vanessa.mp3",
+        self.station.add_rule({"title": "Vanessa", "media_path": "Chroniques/vanessa.mp3",
                                "local_time": "18:15", "weekdays": list(range(7))})
         self.station.next_media(self.at(18, 16))
         self.assertTrue(self.station.next_media(self.at(18, 17)).endswith("vanessa.mp3"))
@@ -67,25 +67,41 @@ class SchedulerTest(unittest.TestCase):
         self.assertTrue(all(not p.endswith("vanessa.mp3") for p in others))
 
     def test_old_event_expires_after_grace_period(self):
-        self.station.add_rule({"title": "Gaming", "media_path": "chronicles/gaming.wav",
+        self.station.add_rule({"title": "Gaming", "media_path": "Chroniques/gaming.wav",
                                "local_time": "15:15", "grace_minutes": 5})
         selection = self.station.next_media(self.at(15, 35))
-        self.assertIn("music", selection)
+        self.assertIn("Musique", selection)
 
     def test_media_path_traversal_rejected(self):
-        for path in ["../../etc/passwd", "music/../chronicles/gaming.wav",
-                     "/etc/passwd", "music/malware.exe"]:
+        for path in ["../../etc/passwd", "Musique/../Chroniques/gaming.wav",
+                     "/etc/passwd", "Musique/malware.exe"]:
             with self.assertRaises(ValueError):
                 module.safe_media_path(self.media, path)
         with self.assertRaises(ValueError):
             self.station.add_rule({"title":"bad", "media_path":"../../etc/passwd",
                                    "local_time":"10:15"})
 
+    def test_new_folder_with_unicode_name_and_nested_tree(self):
+        first = self.station.create_folder("Jingles", "Saint-Valentin")
+        self.assertEqual(first, "Jingles/Saint-Valentin")
+        second = self.station.create_folder(first, "Été 2027")
+        self.assertEqual(second, "Jingles/Saint-Valentin/Été 2027")
+        self.assertIn(second, self.station.folder_list())
+        with self.assertRaises(FileExistsError):
+            self.station.create_folder("Jingles", "Saint-Valentin")
+        for bad in ["../ailleurs", "été/ailleurs", ".caché", "nom.", " nom"]:
+            with self.assertRaises(ValueError):
+                self.station.create_folder("Jingles", bad)
+        with self.assertRaises(ValueError):
+            self.station.create_folder("../etc", "Autre")
+        with self.assertRaises(ValueError):
+            self.station.create_folder(".studio-edit", "Autre")
+
     def test_scan_removes_missing_media_but_keeps_rules(self):
-        (self.media / "music" / "f.mp3").unlink()
+        (self.media / "Musique" / "f.mp3").unlink()
         indexed = self.station.scan()
         self.assertEqual(indexed["indexed"], 8)
-        self.assertNotIn("music/f.mp3", [m["path"] for m in self.station.media_list()])
+        self.assertNotIn("Musique/f.mp3", [m["path"] for m in self.station.media_list()])
 
 
 if __name__ == "__main__":
