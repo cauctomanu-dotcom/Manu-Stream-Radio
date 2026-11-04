@@ -30,6 +30,7 @@ class APITest(unittest.TestCase):
         os.environ.pop("MSR_ICECAST_STATUS_URL", None)
         self.server = ThreadingHTTPServer(("127.0.0.1", 0), QuietAPI)
         self.server.station = module.Station(self.root / "media", self.root / "db.sqlite3")
+        self.server.station.scan()  # First startup indexes the existing category folders.
         self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
         self.thread.start()
 
