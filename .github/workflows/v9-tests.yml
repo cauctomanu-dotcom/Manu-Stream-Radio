@@ -24,3 +24,6 @@ jobs:
         run: |
           node --check docs/site.js
           node --check docs/config.js
+
+      - name: Check preflight script syntax
+        run: bash -n v9/preflight.sh
