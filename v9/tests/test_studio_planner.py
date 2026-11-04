@@ -118,6 +118,96 @@ class StudioPlannerTest(unittest.TestCase):
         self.assertEqual(snapshot["revision"], 0)
         self.assertEqual(snapshot["plannerRules"], [])
 
+    def test_preview_shows_wednesday_gaming_at_two_exact_times(self):
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+        media = self.root / "media" / "Chroniques" / "Actu Gaming"
+        media.mkdir(parents=True)
+        (media / "Actu gaming 4-11.wav").write_bytes(b"wav")
+        gaming = {"id": "gaming", "kind": "chronicle", "enabled": True,
+                  "label": "ACTU GAMING", "days": [2], "start": "00:00",
+                  "end": "23:59", "scheduleMode": "exact-times",
+                  "sourceMode": "exact",
+                  "exactTimes": ["10:30", "19:30"],
+                  "mediaRel": "Chroniques/Actu Gaming/Actu gaming 4-11.wav"}
+        rotation = {**self.rule(0), "kind": "rotation"}
+        jingles = {**self.rule(26), "kind": "jingle-cadence",
+                   "everyTracks": 2, "smart": True}
+        self.server.station.update_studio_planner({
+            "plannerOn": True, "plannerRules": [rotation, gaming, jingles],
+            "expected_revision": 0
+        })
+        preview = self.server.station.studio_planner_preview(
+            datetime(2026, 11, 4, 10, 0, tzinfo=ZoneInfo("Europe/Paris")))
+        self.assertEqual(preview["active_jingle_every_tracks"], 2)
+        self.assertFalse(preview["execution_enabled"])
+        self.assertEqual(preview["active_rotation_count"], 1)
+        self.assertEqual([x["starts_at"][11:16] for x in
+                          preview["upcoming_exact_times"][:2]], ["10:30", "19:30"])
+        self.assertTrue(all(x["media_available"] for x in
+                            preview["upcoming_exact_times"][:2]))
+
+    def test_opt_in_gaming_respects_event_time_and_song_boundary(self):
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+        root = self.root / "media"
+        music = root / "Musique" / "test.mp3"
+        music.parent.mkdir(exist_ok=True, parents=True)
+        music.write_bytes(b"song")
+        wav = root / "Chroniques" / "Actu Gaming" / "test.wav"
+        wav.parent.mkdir(exist_ok=True, parents=True)
+        wav.write_bytes(b"wav")
+        jingle = root / "Jingles" / "Général" / "ident.mp3"
+        jingle.parent.mkdir(parents=True)
+        jingle.write_bytes(b"jingle")
+        self.server.station.scan()
+        self.server.station.set_rotation({"media_path": "Musique/test.mp3",
+                                          "enabled": True})
+        gaming = {"id": "gaming", "kind": "chronicle", "enabled": True,
+                  "label": "ACTU GAMING", "days": [2], "start": "00:00",
+                  "end": "23:59", "scheduleMode": "exact-times",
+                  "sourceMode": "exact", "exactTimes": ["10:30", "19:30"],
+                  "mediaRel": "Chroniques/Actu Gaming/test.wav"}
+        self.server.station.update_studio_planner({
+            "plannerOn": True, "plannerRules": [gaming],
+            "expected_revision": 0})
+        paris = ZoneInfo("Europe/Paris")
+        at = lambda hh, mm: datetime(2026, 11, 4, hh, mm, tzinfo=paris)
+        original = os.environ.get("MSR_ENABLE_STUDIO_PLANNER")
+        try:
+            os.environ.pop("MSR_ENABLE_STUDIO_PLANNER", None)
+            self.assertEqual(Path(self.server.station.next_media(at(10, 31))).name,
+                             "test.mp3")
+            os.environ["MSR_ENABLE_STUDIO_PLANNER"] = "1"
+            self.assertEqual(Path(self.server.station.next_media(at(10, 31))).name,
+                             "ident.mp3")
+            self.assertEqual(Path(self.server.station.next_media(at(10, 32))).name,
+                             "test.wav")
+            self.assertNotEqual(Path(self.server.station.next_media(at(10, 33))).name,
+                                "test.wav")
+        finally:
+            if original is None:
+                os.environ.pop("MSR_ENABLE_STUDIO_PLANNER", None)
+            else:
+                os.environ["MSR_ENABLE_STUDIO_PLANNER"] = original
+
+    def test_disabled_gaming_never_planned(self):
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+        gaming = {"id": "gaming", "kind": "chronicle", "enabled": False,
+                  "days": [2], "start": "00:00", "end": "23:59",
+                  "scheduleMode": "exact-times", "sourceMode": "exact",
+                  "exactTimes": ["10:30"],
+                  "mediaRel": "Chroniques/Actu Gaming/absent.wav"}
+        self.server.station.update_studio_planner({
+            "plannerOn": True, "plannerRules": [gaming],
+            "expected_revision": 0})
+        now = datetime(2026, 11, 4, 10, 31,
+                       tzinfo=ZoneInfo("Europe/Paris"))
+        with self.server.station.db() as db:
+            self.assertEqual(self.server.station._studio_due_rows(db, now), [])
+        self.assertEqual(self.server.station.studio_planner_preview(now)["upcoming_exact_times"], [])
+
     def test_planner_snapshot_does_not_add_playout_rules(self):
         self.server.station.scan()
         music = self.root / "media" / "Musique" / "approved.mp3"
