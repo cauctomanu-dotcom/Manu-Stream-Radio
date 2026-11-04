@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Manu Stream Radio V9 — Programmation</title>
+<style>
+:root{color-scheme:dark;font-family:system-ui,-apple-system,Segoe UI,sans-serif;background:#0c121e;color:#eff5ff}
+*{box-sizing:border-box}body{max-width:1060px;margin:auto;padding:24px 18px 56px}
+h1{font-size:clamp(1.65rem,3vw,2.5rem);margin:.2em 0}h2{margin:.2em 0 1em;font-size:1.15rem}
+small,.muted{color:#a9b7cf}header{margin-bottom:28px}.eyebrow{font-size:.8rem;letter-spacing:.18em;text-transform:uppercase;color:#71d6cf}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:18px}
+.panel{background:#141f31;border:1px solid #2d3b51;border-radius:18px;padding:20px;margin-bottom:18px}
+label{display:block;font-size:.9rem;margin-bottom:6px;color:#bfcae0}
+input,select,button{font:inherit}input,select{width:100%;background:#091524;color:#eff5ff;border:1px solid #44556e;border-radius:9px;padding:11px;margin:0 0 12px}
+input[type=checkbox]{width:auto;margin:0}.days{display:flex;gap:12px;flex-wrap:wrap;margin:10px 0 16px}
+.days label{display:flex;align-items:center;gap:5px}
+button{background:#60d7be;color:#06211e;border:0;border-radius:10px;padding:10px 16px;font-weight:750;cursor:pointer}
+button.secondary{background:#2b3b54;color:white}button.danger{background:#65333d;color:#fff}
+button:disabled{opacity:.5;cursor:wait}.actions{display:flex;gap:9px;flex-wrap:wrap}
+#notice{min-height:2em;color:#b6e1d9}.rule{display:flex;align-items:start;justify-content:space-between;gap:16px;padding:12px 0;border-bottom:1px solid #303f54}
+.rule:last-child{border-bottom:0}.rule strong{display:block}.rule small{display:block;overflow-wrap:anywhere}
+.stat{display:flex;justify-content:space-between;gap:8px;align-items:center}
+.rotation-list{max-height:390px;overflow:auto;border-top:1px solid #303f54}
+.rotation-song{display:flex;align-items:center;gap:10px;padding:9px 3px;border-bottom:1px solid #303f54;cursor:pointer}
+.rotation-song span{overflow-wrap:anywhere}
+code{font-size:.88em;color:#bfe5df;overflow-wrap:anywhere}
+.status{color:#8af0ce}.error{color:#ffb2bb}
+@media(max-width:600px){body{padding:16px 12px}.panel{padding:16px}.rule{flex-direction:column}}
+</style>
+</head>
+<body>
+<header>
+<p class="eyebrow">Manu Stream Radio / Régie serveur</p>
+<h1>Programmation autonome V9</h1>
+<p class="muted">La programmation est enregistrée sur Ubuntu. Les médias sont joués à la fin du morceau en cours — jamais coupés pour un horaire.</p>
+</header>
+<section class="panel">
+<h2>Connexion sécurisée</h2>
+<label for="token">Jeton administrateur du serveur</label>
+<input id="token" type="password" autocomplete="off" placeholder="Jeton MSR_ADMIN_TOKEN">
+<div class="actions"><button id="login">Accéder à la régie</button><button id="refresh" class="secondary">Actualiser</button></div>
+<p id="notice" role="status" aria-live="polite"></p>
+<p class="muted"><small>Le jeton reste en mémoire de cette page uniquement. Accéder à cette interface par HTTPS ou depuis le réseau local via un accès sécurisé.</small></p>
+</section>
+<div id="controls" hidden>
+<div class="cards">
+<section class="panel">
+<h2>Ajouter un média sur le disque de 2 To</h2>
+<label for="destination">Dossier de destination</label>
+<select id="destination"></select>
+<label for="file">Fichier audio MP3, WAV, M4A, FLAC, OGG ou AAC</label>
+<input type="file" id="file" accept=".mp3,.wav,.m4a,.flac,.ogg,.aac">
+<button id="upload">Importer sur le serveur</button>
+<p class="muted" id="uploadInfo">La copie est transférée directement vers la bibliothèque Linux.</p>
+</section>
+<section class="panel">
+<h2>Nouveau sous-dossier</h2>
+<p class="muted">Disponible pour le Studio et la Remote après leur raccordement à la V9.</p>
+<label for="folderParent">Créer dans</label>
+<select id="folderParent"></select>
+<label for="newFolder">Nom du nouveau dossier</label>
+<input id="newFolder" placeholder="Ex. Saint-Valentin" maxlength="120">
+<button id="createFolder">＋ Créer le dossier</button>
+</section>
+<section class="panel">
+<h2>Programmer une diffusion</h2>
+<label for="title">Titre affiché à l’antenne</label><input id="title" placeholder="La Revue de Vanessa">
+<label for="media">Média</label><select id="media"></select>
+<label for="hour">Heure cible</label><input id="hour" type="time" value="15:15">
+<label for="date">Date unique (facultatif)</label><input id="date" type="date">
+<label>Jours de répétition, si pas de date unique</label>
+<div class="days">
+<label><input type="checkbox" name="day" value="0" checked>Lun</label>
+<label><input type="checkbox" name="day" value="1" checked>Mar</label>
+<label><input type="checkbox" name="day" value="2" checked>Mer</label>
+<label><input type="checkbox" name="day" value="3" checked>Jeu</label>
+<label><input type="checkbox" name="day" value="4" checked>Ven</label>
+<label><input type="checkbox" name="day" value="5" checked>Sam</label>
+<label><input type="checkbox" name="day" value="6" checked>Dim</label>
+</div>
+<button id="create">Enregistrer le programme</button>
+</section>
+</div>
+<section class="panel">
+<h2>Musiques autorisées en rotation</h2>
+<p class="muted">Seules les musiques cochées peuvent passer en automatisation. Par sécurité, les nouveaux titres ne sont jamais autorisés automatiquement. Si aucune musique n'est autorisée, le flux de test reste silencieux hors programme ou direct.</p>
+<p id="rotationCount" class="muted">—</p>
+<div id="rotationSongs" class="rotation-list"></div>
+</section>
+<section class="panel">
+<div class="stat"><h2>À l'antenne et prochains rendez-vous</h2><span id="mode" class="status">—</span></div>
+<p id="now" class="muted">—</p>
+<div id="upcoming"></div>
+</section>
+<section class="panel">
+<div class="stat"><h2>Règles programmées</h2><button id="scan" class="secondary">Analyser la médiathèque</button></div>
+<div id="rules" class="muted">Aucune programmation chargée.</div>
+</section>
+</div>
+<script>
+(() => {
+  let token = "";
+  const $ = id => document.getElementById(id);
+  const notice = (msg, bad=false) => { $('notice').textContent=msg; $('notice').className=bad?"error":"status"; };
+  async function call(path, opts={}) {
+    const headers = {...(opts.headers||{}), Authorization:"Bearer "+token};
+    const response = await fetch(path,{...opts,headers,cache:"no-store"});
+    const payload = await response.json().catch(()=>({error:"Réponse invalide"}));
+    if (!response.ok) throw new Error(payload.error||"HTTP "+response.status);
+    return payload;
+  }
+  const fmt = raw => {
+    try{return new Date(raw).toLocaleString("fr-FR",{day:"2-digit",month:"short",hour:"2-digit",minute:"2-digit"});}
+    catch{return raw;}
+  };
+  async function refresh() {
+    const data=await call("/api/admin/state");
+    $('controls').hidden=false;
+    $('mode').textContent="Programmation serveur";
+    $('now').textContent=data.status?.selected?.title
+      ? "Dernier média sélectionné : "+data.status.selected.title : "En attente de première diffusion.";
+    const upcoming=$('upcoming');upcoming.replaceChildren();
+    for(const item of data.status.next||[]) {
+      const p=document.createElement("p");p.textContent=fmt(item.starts_at)+" — "+item.title;upcoming.append(p);
+    }
+    const folders=data.folders||[];
+    for(const id of ['destination','folderParent']) {
+      const select=$(id), previous=select.value;
+      select.replaceChildren();
+      for(const folder of folders) {
+        const option=document.createElement('option');
+        option.value=folder; option.textContent=folder;select.append(option);
+      }
+      if([...select.options].some(o=>o.value===previous))select.value=previous;
+      else if([...select.options].some(o=>o.value==='Chroniques'))select.value='Chroniques';
+    }
+    const songs=(data.media||[]).filter(item=>item.kind==="music");
+    const approved=songs.filter(item=>item.rotation_enabled).length;
+    $('rotationCount').textContent=approved+" musique(s) autorisée(s) sur "+songs.length;
+    const rotation=$('rotationSongs'); rotation.replaceChildren();
+    for(const song of songs) {
+      const label=document.createElement('label');label.className='rotation-song';
+      const check=document.createElement('input');check.type='checkbox';check.checked=!!song.rotation_enabled;
+      const name=document.createElement('span');name.textContent=song.path;
+      check.onchange=async()=>{
+        const desired=check.checked;check.disabled=true;
+        try {
+          await call("/api/admin/rotation",{method:"POST",headers:{"Content-Type":"application/json"},
+            body:JSON.stringify({media_path:song.path,enabled:desired})});
+          song.rotation_enabled=desired;
+          const count=songs.filter(item=>item.rotation_enabled).length;
+          $('rotationCount').textContent=count+" musique(s) autorisée(s) sur "+songs.length;
+          notice((desired?"Rotation autorisée : ":"Rotation interdite : ")+song.path);
+        }catch(e){check.checked=!desired;notice("Modification impossible : "+e.message,true);}
+        finally{check.disabled=false;}
+      };
+      label.append(check,name);rotation.append(label);
+    }
+    const media=$('media');const chosen=media.value;media.replaceChildren();
+    for(const item of data.media) {
+      const opt=document.createElement("option"); opt.value=item.path;
+      opt.textContent=item.path+" ("+(item.size/1048576).toFixed(1)+" Mio)";
+      media.append(opt);
+    }
+    if([...media.options].some(o=>o.value===chosen))media.value=chosen;
+    const rules=$('rules');rules.replaceChildren();
+    if(!data.rules.length)rules.textContent="Aucune programmation enregistrée.";
+    for(const r of data.rules) {
+      const row=document.createElement("div");row.className="rule";
+      const desc=document.createElement("div");const strong=document.createElement("strong");
+      strong.textContent=r.local_time+" · "+r.title;const small=document.createElement("small");
+      small.textContent=(r.single_date||"Jours "+r.weekdays.join(","))+" · "+r.media_path;
+      desc.append(strong,small);
+      const btn=document.createElement("button");btn.className="danger";btn.textContent="Supprimer";
+      btn.onclick=async()=>{if(!confirm("Supprimer cette programmation ?"))return;
+        try{await call("/api/admin/rules/"+r.id,{method:"DELETE"});await refresh();notice("Programmation supprimée.");}
+        catch(e){notice(e.message,true);}};
+      row.append(desc,btn);rules.append(row);
+    }
+  }
+  $('login').onclick=async()=>{token=$('token').value.trim();if(!token)return notice("Jeton requis.",true);
+    try{await refresh();$('token').value="";notice("Connecté à la régie serveur.");}
+    catch(e){token="";$('controls').hidden=true;notice(e.message,true);}};
+  $('refresh').onclick=async()=>{try{await refresh();notice("Données actualisées.");}catch(e){notice(e.message,true);}};
+  $('scan').onclick=async()=>{try{const r=await call("/api/admin/scan",{method:"POST"});
+    await refresh();notice(r.indexed+" médias indexés.");}catch(e){notice(e.message,true);}};
+  $('upload').onclick=async()=>{
+    const file=$('file').files[0];if(!file)return notice("Choisis un fichier.",true);
+    const ext=file.name.slice(file.name.lastIndexOf(".")).toLowerCase();
+    if(![".mp3",".wav",".m4a",".flac",".ogg",".aac"].includes(ext))return notice("Format non accepté.",true);
+    $('upload').disabled=true;$('uploadInfo').textContent="Envoi en cours : "+file.name+"…";
+    try {
+      const folder=$('destination').value;
+      if(!folder)throw new Error("Choisis un dossier");
+      const path="/api/admin/media/"+folder.split('/').map(encodeURIComponent).join('/')+"/"+encodeURIComponent(file.name);
+      await call(path,{method:"PUT",headers:{"Content-Type":"application/octet-stream"},body:file});
+      $('file').value="";await refresh();notice("Média importé sur le serveur.");
+      $('uploadInfo').textContent="Transfert terminé.";
+    } catch(e){notice("Importation impossible : "+e.message,true);$('uploadInfo').textContent="Échec de l'envoi.";}
+    finally{$('upload').disabled=false;}
+  };
+  $('createFolder').onclick=async()=>{
+    const parent=$('folderParent').value,name=$('newFolder').value;
+    if(!parent||!name.trim())return notice("Choisis le dossier parent et un nom.",true);
+    $('createFolder').disabled=true;
+    try{
+      const result=await call("/api/admin/folders",{
+        method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({parent,name})
+      });
+      await refresh();
+      $('destination').value=result.path;
+      $('folderParent').value=result.path;
+      $('newFolder').value="";
+      notice("Dossier créé : "+result.path);
+    }catch(e){notice(e.message,true);}
+    finally{$('createFolder').disabled=false;}
+  };
+  $('create').onclick=async()=>{
+    const payload={title:$('title').value.trim(),media_path:$('media').value,
+      local_time:$('hour').value,single_date:$('date').value||null,
+      weekdays:[...document.querySelectorAll('input[name=day]:checked')].map(x=>Number(x.value))};
+    try{await call("/api/admin/rules",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
+      $('title').value="";await refresh();notice("Programmation enregistrée sur le serveur.");}
+    catch(e){notice(e.message,true);}
+  };
+})();
+</script>
+</body>
+</html>

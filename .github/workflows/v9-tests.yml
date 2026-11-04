@@ -1,0 +1,29 @@
+name: Manu Stream Radio V9 — tests
+on:
+  pull_request:
+    paths:
+      - "v9/**"
+      - "docs/site.js"
+      - "docs/config.js"
+      - ".github/workflows/v9-tests.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile Python sources
+        run: python3 -m py_compile v9/engine.py v9/tests/test_engine.py
+      - name: Scheduler tests
+        run: python3 -m unittest discover -s v9/tests -v
+      - name: Check website JavaScript syntax
+        run: |
+          node --check docs/site.js
+          node --check docs/config.js
+
+      - name: Check preflight script syntax
+        run: bash -n v9/preflight.sh
