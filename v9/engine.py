@@ -90,6 +90,11 @@ def validate_folder_name(name: str) -> str:
     return name
 
 
+class PlannerConflict(Exception):
+    """A Studio client tried to replace a newer saved planner revision."""
+
+
+
 class Station:
     def __init__(self, media_root: Path, database: Path):
         self.root = media_root.resolve()
@@ -226,6 +231,55 @@ class Station:
             db.execute("UPDATE media SET rotation_enabled=? WHERE path=?",
                        (int(enabled), path))
         return {"media_path": path, "rotation_enabled": enabled}
+
+    def studio_planner(self):
+        """Read the full Studio 7J/24H snapshot, without changing playout rules."""
+        with self.db() as db:
+            raw = self._get(db, "studio_planner_snapshot_v1")
+            revision = int(self._get(db, "studio_planner_revision_v1", "0"))
+        snapshot = json.loads(raw) if raw else {"plannerOn": False, "plannerRules": []}
+        return {**snapshot, "revision": revision}
+
+    def update_studio_planner(self, payload):
+        """Store the Studio planner as data only; Liquidsoap must NOT execute it yet.
+
+        Optimistic revision checking prevents a stale Studio or Remote from
+        silently overwriting a newer server-side schedule.
+        """
+        expected = payload.get("expected_revision")
+        enabled = payload.get("plannerOn")
+        rules = payload.get("plannerRules")
+        if type(expected) is not int or expected < 0:
+            raise ValueError("expected_revision entier obligatoire : relire le planificateur")
+        if type(enabled) is not bool or not isinstance(rules, list) or len(rules) > 256:
+            raise ValueError("Format du planificateur incorrect")
+        for rule in rules:
+            if not isinstance(rule, dict) or type(rule.get("enabled")) is not bool:
+                raise ValueError("Règle invalide : enabled doit être vrai ou faux")
+            if not isinstance(rule.get("kind"), str) or not rule["kind"]:
+                raise ValueError("Règle invalide : type manquant")
+            days = rule.get("days")
+            if not isinstance(days, list) or any(type(day) is not int or day not in range(7) for day in days):
+                raise ValueError("Règle invalide : days doit contenir des jours de 0 à 6")
+            for key in ("start", "end"):
+                if not isinstance(rule.get(key), str) or not TIME_RE.fullmatch(rule[key]):
+                    raise ValueError("Règle invalide : horaire " + key)
+            repeat = rule.get("repeatMinutes")
+            if repeat is not None and (type(repeat) is not int or not 0 <= repeat <= 1440):
+                raise ValueError("Règle invalide : repeatMinutes")
+        snapshot = {"plannerOn": enabled, "plannerRules": rules}
+        raw = json.dumps(snapshot, ensure_ascii=False, separators=(",", ":"))
+        if len(raw.encode("utf-8")) > MAX_BODY:
+            raise ValueError("Planificateur trop volumineux")
+        with self.db() as db:
+            db.execute("BEGIN IMMEDIATE")
+            revision = int(self._get(db, "studio_planner_revision_v1", "0"))
+            if revision != expected:
+                raise PlannerConflict("Planificateur modifié ailleurs : actualiser avant d'enregistrer")
+            self._put(db, "studio_planner_snapshot_v1", raw)
+            self._put(db, "studio_planner_revision_v1", str(revision + 1))
+            db.commit()
+        return {"plannerOn": enabled, "plannerRules": rules, "revision": revision + 1}
 
     def rules_list(self):
         with self.db() as db:
@@ -481,6 +535,8 @@ class API(BaseHTTPRequestHandler):
                 return self.respond(200, page, "text/html; charset=utf-8")
             if not self.authorized():
                 return self.respond(401, {"error": "Accès réservé"})
+            if route == "/api/admin/studio-planner":
+                return self.respond(200, self.station.studio_planner())
             if route == "/api/admin/state":
                 return self.respond(200, {"status": self.station.status(),
                                           "rules": self.station.rules_list(),
@@ -528,6 +584,13 @@ class API(BaseHTTPRequestHandler):
         if not self.authorized():
             return self.respond(401, {"error": "Accès réservé"})
         route = urlparse(self.path).path
+        if route == "/api/admin/studio-planner":
+            try:
+                return self.respond(200, self.station.update_studio_planner(self.json_body()))
+            except PlannerConflict as err:
+                return self.respond(409, {"error": str(err)})
+            except (ValueError, json.JSONDecodeError) as err:
+                return self.respond(400, {"error": str(err)})
         prefix = "/api/admin/media/"
         if not route.startswith(prefix):
             return self.respond(404, {"error": "Introuvable"})
