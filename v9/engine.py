@@ -551,6 +551,9 @@ class Station:
                     intro = self._choose(db, "jingles")
                     if intro:
                         self._put(db, "pending_rule", json.dumps(ident))
+                        # An introduction jingle resets the song counter for
+                        # legacy scheduled events too, not just Studio events.
+                        self._put(db, "songs_since_jingle", "0")
                         result = self._record(db, intro, "jingles")
                         db.commit()
                         return result
