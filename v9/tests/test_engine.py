@@ -43,6 +43,15 @@ class SchedulerTest(unittest.TestCase):
         self.assertEqual(len(set(items)), 3)
         self.assertEqual(Path(self.station.next_media(self.at(8, 12))).name, "intro.mp3")
 
+    def test_automatic_jingles_use_only_general(self):
+        seasonal = self.media / "Jingles" / "Noël"
+        seasonal.mkdir()
+        (seasonal / "special.mp3").write_bytes(b"test")
+        self.station.scan()
+        with self.station.db() as db:
+            chosen = [self.station._choose(db, "jingles") for _ in range(10)]
+        self.assertEqual(set(chosen), {"Jingles/Général/intro.mp3"})
+
     def test_program_waits_for_track_boundary_and_jingle(self):
         self.station.add_rule({"title": "Gaming",
                                "media_path": "Chroniques/gaming.wav",
