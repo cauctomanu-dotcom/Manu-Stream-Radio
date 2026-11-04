@@ -23,7 +23,7 @@ class SchedulerTest(unittest.TestCase):
         self.station = Station(self.media, base / "db" / "station.sqlite3")
         for folder, names in {
             "Musique": ["a.mp3", "b.mp3", "c.mp3", "d.mp3", "e.mp3", "f.mp3"],
-            "Jingles": ["intro.mp3"],
+            "Jingles/Général": ["intro.mp3"],
             "Chroniques": ["gaming.wav", "vanessa.mp3"],
         }.items():
             path = self.media / folder
