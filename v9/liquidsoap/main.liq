@@ -1,10 +1,10 @@
 # Manu Stream Radio V9 — test mount only. Never replace /manustream directly.
-# Tested target: Liquidsoap 2.3.x (run liquidsoap --check before enabling).
+# Script syntax validated on Liquidsoap 2.2.4 on Ubuntu; audio handoff still requires real-stream tests.
 settings.log.stdout := true
 settings.frame.audio.samplerate := 48000
 
 # The Python scheduler is invoked for each NEW track. No scheduled event cuts
-# a song already playing. Synchronous requests prevent early queue decisions.
+# a song already playing. Verify request timing and buffering in a live test.
 def choose_next() =
   lines = process.read.lines("python3 /opt/manustream-v9/v9/engine.py next")
   path = list.hd(default="", lines)
@@ -17,7 +17,6 @@ end
 
 managed = request.dynamic(
   id="msr_v9_scheduled",
-  synchronous=true,
   prefetch=0,
   retry_delay=0.5,
   choose_next
